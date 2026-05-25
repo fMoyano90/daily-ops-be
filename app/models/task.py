@@ -32,6 +32,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
@@ -46,6 +47,7 @@ class Task(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    user = relationship("User", back_populates="tasks")
     project = relationship("Project", back_populates="tasks")
     daily_tasks = relationship("DailyTask", back_populates="task")
     comments = relationship(

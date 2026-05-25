@@ -108,6 +108,7 @@ async def _upsert_issue(
 
     if existing is None:
         task = Task(
+            user_id=conn.user_id,
             project_id=conn.project_id,
             title=issue.summary or issue.key,
             description=issue.description_text,

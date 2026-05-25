@@ -1,3 +1,4 @@
+from app.models.user import User
 from app.models.project import Base, Project
 from app.models.task import Task
 from app.models.daily_plan import DailyPlan

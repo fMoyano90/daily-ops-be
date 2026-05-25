@@ -23,6 +23,7 @@ class DailyTask(Base):
     __tablename__ = "daily_tasks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     daily_plan_id = Column(UUID(as_uuid=True), ForeignKey("daily_plans.id", ondelete="CASCADE"), nullable=False)
     task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
     recurring_task_id = Column(UUID(as_uuid=True), ForeignKey("recurring_tasks.id", ondelete="SET NULL"), nullable=True)
@@ -34,6 +35,7 @@ class DailyTask(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
+    user = relationship("User", back_populates="daily_tasks")
     daily_plan = relationship("DailyPlan", back_populates="tasks")
     task = relationship("Task", back_populates="daily_tasks")
     recurring_task = relationship("RecurringTask")

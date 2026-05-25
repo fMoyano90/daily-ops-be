@@ -6,11 +6,13 @@ from datetime import date, timedelta
 from uuid import UUID
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models.daily_plan import DailyPlan, DailyPlanStatus
 from app.models.daily_task import DailyTask, DailyTaskStatus
 from app.models.daily_subtask import DailySubtask
 from app.models.task import Task
 from app.models.project import Project
+from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/history", tags=["history"])
 
@@ -60,8 +62,9 @@ async def list_history(
     to_date: date | None = Query(None, alias="to"),
     limit: int = Query(30, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    query = select(DailyPlan).where(DailyPlan.status == DailyPlanStatus.closed)
+    query = select(DailyPlan).where(DailyPlan.status == DailyPlanStatus.closed, DailyPlan.user_id == user.id)
     if from_date:
         query = query.where(DailyPlan.date >= from_date)
     if to_date:
@@ -103,8 +106,8 @@ async def list_history(
 
 
 @router.get("/{history_date}")
-async def get_history_by_date(history_date: date, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(DailyPlan).where(DailyPlan.date == history_date))
+async def get_history_by_date(history_date: date, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    result = await db.execute(select(DailyPlan).where(DailyPlan.date == history_date, DailyPlan.user_id == user.id))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="No plan found for this date")
@@ -140,6 +143,7 @@ async def get_history_by_date(history_date: date, db: AsyncSession = Depends(get
 async def get_weekly_summary(
     week_start: date | None = Query(None),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     if not week_start:
         today = date.today()
@@ -149,7 +153,7 @@ async def get_weekly_summary(
 
     plans_result = await db.execute(
         select(DailyPlan)
-        .where(DailyPlan.date >= week_start)
+        .where(DailyPlan.date >= week_start, DailyPlan.user_id == user.id)
         .where(DailyPlan.date <= week_end)
         .where(DailyPlan.status == DailyPlanStatus.closed)
     )

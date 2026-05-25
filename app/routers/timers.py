@@ -5,18 +5,25 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models.daily_task import DailyTask, DailyTaskStatus
 from app.models.timer_session import TimerSession
+from app.models.user import User
 from app.schemas.timer_session import TimerSessionResponse, TimerStartResponse, TimerStopResponse
 
 router = APIRouter(prefix="/api/v1/daily-tasks/{task_id}/timer", tags=["timers"])
 
 
-@router.post("/start", response_model=TimerStartResponse, status_code=status.HTTP_201_CREATED)
-async def start_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
+async def verify_task_ownership(db: AsyncSession, task_id: UUID, user: User):
     task = await db.get(DailyTask, task_id)
-    if not task:
+    if not task or task.user_id != user.id:
         raise HTTPException(status_code=404, detail="Daily task not found")
+    return task
+
+
+@router.post("/start", response_model=TimerStartResponse, status_code=status.HTTP_201_CREATED)
+async def start_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    task = await verify_task_ownership(db, task_id, user)
 
     if task.status == DailyTaskStatus.planned:
         task.status = DailyTaskStatus.in_progress
@@ -24,6 +31,7 @@ async def start_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
 
     session = TimerSession(
         daily_task_id=task_id,
+        user_id=user.id,
         started_at=datetime.now(timezone.utc),
     )
     db.add(session)
@@ -34,14 +42,12 @@ async def start_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/pause", response_model=TimerSessionResponse)
-async def pause_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
-    task = await db.get(DailyTask, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Daily task not found")
+async def pause_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    task = await verify_task_ownership(db, task_id, user)
 
     result = await db.execute(
         select(TimerSession)
-        .where(TimerSession.daily_task_id == task_id)
+        .where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id)
         .where(TimerSession.stopped_at == None)
         .order_by(TimerSession.started_at.desc())
     )
@@ -55,7 +61,7 @@ async def pause_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
 
     total_result = await db.execute(
         select(func.sum(TimerSession.duration_seconds))
-        .where(TimerSession.daily_task_id == task_id)
+        .where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id)
     )
     total_seconds = total_result.scalar() or 0
     task.total_seconds = total_seconds
@@ -67,15 +73,14 @@ async def pause_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/resume", response_model=TimerStartResponse, status_code=status.HTTP_201_CREATED)
-async def resume_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
-    task = await db.get(DailyTask, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Daily task not found")
+async def resume_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    task = await verify_task_ownership(db, task_id, user)
 
     task.status = DailyTaskStatus.in_progress
 
     session = TimerSession(
         daily_task_id=task_id,
+        user_id=user.id,
         started_at=datetime.now(timezone.utc),
     )
     db.add(session)
@@ -86,14 +91,12 @@ async def resume_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/stop", response_model=TimerStopResponse)
-async def stop_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
-    task = await db.get(DailyTask, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Daily task not found")
+async def stop_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    task = await verify_task_ownership(db, task_id, user)
 
     result = await db.execute(
         select(TimerSession)
-        .where(TimerSession.daily_task_id == task_id)
+        .where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id)
         .where(TimerSession.stopped_at == None)
         .order_by(TimerSession.started_at.desc())
     )
@@ -107,7 +110,7 @@ async def stop_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
 
     total_result = await db.execute(
         select(func.sum(TimerSession.duration_seconds))
-        .where(TimerSession.daily_task_id == task_id)
+        .where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id)
     )
     total_seconds = total_result.scalar() or 0
     task.total_seconds = total_seconds
@@ -124,12 +127,10 @@ async def stop_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/reset")
-async def reset_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
-    task = await db.get(DailyTask, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Daily task not found")
+async def reset_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    task = await verify_task_ownership(db, task_id, user)
 
-    await db.execute(delete(TimerSession).where(TimerSession.daily_task_id == task_id))
+    await db.execute(delete(TimerSession).where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id))
     task.total_seconds = 0
     task.status = DailyTaskStatus.planned
     task.started_at = None
@@ -139,10 +140,11 @@ async def reset_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/sessions", response_model=list[TimerSessionResponse])
-async def get_timer_sessions(task_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_timer_sessions(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    task = await verify_task_ownership(db, task_id, user)
     result = await db.execute(
         select(TimerSession)
-        .where(TimerSession.daily_task_id == task_id)
+        .where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id)
         .order_by(TimerSession.started_at.desc())
     )
     return result.scalars().all()

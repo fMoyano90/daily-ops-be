@@ -36,6 +36,7 @@ async def auto_add_for_today(db: AsyncSession, plan: DailyPlan) -> int:
 
     result = await db.execute(
         select(RecurringTask)
+        .where(RecurringTask.user_id == plan.user_id)
         .where(RecurringTask.is_active == True)
         .options(selectinload(RecurringTask.project))
     )
@@ -74,6 +75,7 @@ async def auto_add_for_today(db: AsyncSession, plan: DailyPlan) -> int:
         max_order = max([t.sort_order for t in existing_tasks], default=0)
 
         daily_task = DailyTask(
+            user_id=plan.user_id,
             daily_plan_id=plan.id,
             recurring_task_id=rt.id,
             title_snapshot=rt.title,
@@ -85,6 +87,7 @@ async def auto_add_for_today(db: AsyncSession, plan: DailyPlan) -> int:
         await db.flush()
 
         instance = RecurringTaskInstance(
+            user_id=plan.user_id,
             recurring_task_id=rt.id,
             date=today_start,
             daily_task_id=daily_task.id,

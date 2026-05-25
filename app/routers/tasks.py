@@ -6,8 +6,10 @@ from datetime import date, datetime
 from uuid import UUID
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models.task import Task, TaskStatus, TaskSource, Priority
 from app.models.recurring_task import RecurringTask, RecurringTaskInstance, RecurringInstanceStatus, RecurringTaskType
+from app.models.user import User
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 import calendar
 
@@ -22,8 +24,9 @@ async def list_tasks(
     category: str | None = Query(None),
     priority: Priority | None = Query(None),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    query = select(Task)
+    query = select(Task).where(Task.user_id == user.id)
     if project_id:
         query = query.where(Task.project_id == project_id)
     if status_filter:
@@ -55,21 +58,23 @@ def recurring_matches_today(rt: RecurringTask, target_date: date) -> bool:
 
 
 @router.get("/backlog")
-async def get_backlog(db: AsyncSession = Depends(get_db)):
+async def get_backlog(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     today = date.today()
     today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
     today_end = datetime(today.year, today.month, today.day, 23, 59, 59)
 
     result = await db.execute(
-        select(Task).where(Task.status == TaskStatus.backlog).order_by(Task.priority, Task.created_at.desc())
+        select(Task).where(Task.status == TaskStatus.backlog, Task.user_id == user.id).order_by(Task.priority, Task.created_at.desc())
     )
     backlog_tasks = result.scalars().all()
 
     skipped_recurring_result = await db.execute(
         select(RecurringTaskInstance)
+        .join(RecurringTask)
         .where(RecurringTaskInstance.status == RecurringInstanceStatus.skipped)
         .where(RecurringTaskInstance.date >= today_start)
         .where(RecurringTaskInstance.date <= today_end)
+        .where(RecurringTask.user_id == user.id)
         .options(selectinload(RecurringTaskInstance.recurring_task).selectinload(RecurringTask.project))
     )
     skipped_instances = skipped_recurring_result.scalars().all()
@@ -128,8 +133,8 @@ async def get_backlog(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
-async def create_task(data: TaskCreate, db: AsyncSession = Depends(get_db)):
-    task = Task(**data.model_dump())
+async def create_task(data: TaskCreate, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    task = Task(**data.model_dump(), user_id=user.id)
     db.add(task)
     await db.flush()
     await db.refresh(task)
@@ -137,17 +142,17 @@ async def create_task(data: TaskCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
-async def get_task(task_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_task(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     task = await db.get(Task, task_id)
-    if not task:
+    if not task or task.user_id != user.id:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
 
 @router.patch("/{task_id}", response_model=TaskResponse)
-async def update_task(task_id: UUID, data: TaskUpdate, db: AsyncSession = Depends(get_db)):
+async def update_task(task_id: UUID, data: TaskUpdate, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     task = await db.get(Task, task_id)
-    if not task:
+    if not task or task.user_id != user.id:
         raise HTTPException(status_code=404, detail="Task not found")
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -158,9 +163,9 @@ async def update_task(task_id: UUID, data: TaskUpdate, db: AsyncSession = Depend
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_task(task_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_task(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     task = await db.get(Task, task_id)
-    if not task:
+    if not task or task.user_id != user.id:
         raise HTTPException(status_code=404, detail="Task not found")
     await db.delete(task)
     await db.flush()

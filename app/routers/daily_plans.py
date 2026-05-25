@@ -6,11 +6,13 @@ from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models.daily_plan import DailyPlan, DailyPlanStatus
 from app.models.daily_task import DailyTask, DailyTaskStatus
 from app.models.task import Task, TaskStatus
 from app.models.project import Project
 from app.models.recurring_task import RecurringTask, RecurringTaskInstance, RecurringInstanceStatus
+from app.models.user import User
 from app.schemas.daily_plan import DailyPlanCreate, DailyPlanUpdate, DailyPlanResponse
 from app.schemas.daily_task import DailyTaskResponse
 from app.schemas.project import ProjectResponse
@@ -46,11 +48,11 @@ def inject_live_seconds(plan: DailyPlan):
 
 
 @router.get("/today", response_model=DailyPlanResponse)
-async def get_today_plan(db: AsyncSession = Depends(get_db)):
+async def get_today_plan(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     today = date.today()
     result = await db.execute(
         select(DailyPlan)
-        .where(DailyPlan.date == today)
+        .where(DailyPlan.date == today, DailyPlan.user_id == user.id)
         .options(
             selectinload(DailyPlan.tasks)
             .selectinload(DailyTask.subtasks),
@@ -65,12 +67,12 @@ async def get_today_plan(db: AsyncSession = Depends(get_db)):
     )
     plan = result.scalar_one_or_none()
     if not plan:
-        plan = DailyPlan(date=today)
+        plan = DailyPlan(date=today, user_id=user.id)
         db.add(plan)
         await db.commit()
         result = await db.execute(
             select(DailyPlan)
-            .where(DailyPlan.date == today)
+            .where(DailyPlan.date == today, DailyPlan.user_id == user.id)
             .options(
                 selectinload(DailyPlan.tasks)
                 .selectinload(DailyTask.subtasks),
@@ -106,8 +108,8 @@ async def get_today_plan(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{plan_date}", response_model=DailyPlanResponse)
-async def get_plan_by_date(plan_date: date, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(DailyPlan).where(DailyPlan.date == plan_date))
+async def get_plan_by_date(plan_date: date, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    result = await db.execute(select(DailyPlan).where(DailyPlan.date == plan_date, DailyPlan.user_id == user.id))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found for this date")
@@ -115,12 +117,12 @@ async def get_plan_by_date(plan_date: date, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=DailyPlanResponse, status_code=status.HTTP_201_CREATED)
-async def create_daily_plan(data: DailyPlanCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(DailyPlan).where(DailyPlan.date == data.date))
+async def create_daily_plan(data: DailyPlanCreate, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    result = await db.execute(select(DailyPlan).where(DailyPlan.date == data.date, DailyPlan.user_id == user.id))
     existing = result.scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="Plan already exists for this date")
-    plan = DailyPlan(**data.model_dump())
+    plan = DailyPlan(**data.model_dump(), user_id=user.id)
     db.add(plan)
     await db.flush()
     await db.refresh(plan)
@@ -128,12 +130,12 @@ async def create_daily_plan(data: DailyPlanCreate, db: AsyncSession = Depends(ge
 
 
 @router.post("/today/tasks", response_model=DailyPlanResponse, status_code=status.HTTP_201_CREATED)
-async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depends(get_db)):
+async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     today = date.today()
-    result = await db.execute(select(DailyPlan).where(DailyPlan.date == today))
+    result = await db.execute(select(DailyPlan).where(DailyPlan.date == today, DailyPlan.user_id == user.id))
     plan = result.scalar_one_or_none()
     if not plan:
-        plan = DailyPlan(date=today)
+        plan = DailyPlan(date=today, user_id=user.id)
         db.add(plan)
         await db.flush()
         await db.refresh(plan)
@@ -167,9 +169,9 @@ async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depend
 
 
 @router.post("/{plan_id}/tasks", response_model=DailyTaskResponse, status_code=status.HTTP_201_CREATED)
-async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends(get_db)):
+async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     plan = await db.get(DailyPlan, plan_id)
-    if not plan:
+    if not plan or plan.user_id != user.id:
         raise HTTPException(status_code=404, detail="Plan not found")
 
     task_id = data.get("task_id")
@@ -283,7 +285,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
 
 
 @router.get("/today/suggestions")
-async def get_suggestions(db: AsyncSession = Depends(get_db)):
+async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     from app.services.recurring_engine import get_tasks_for_date
     
     today = date.today()
@@ -292,14 +294,14 @@ async def get_suggestions(db: AsyncSession = Depends(get_db)):
     rolled_over_result = await db.execute(
         select(DailyTask)
         .join(DailyPlan)
-        .where(DailyPlan.date == yesterday)
-        .where(DailyTask.status.in_([DailyTaskStatus.in_progress, DailyTaskStatus.paused, DailyTaskStatus.planned]))
+        .where(DailyPlan.date == yesterday, DailyPlan.user_id == user.id)
+        .where(DailyTask.status == DailyTaskStatus.rolled_over)
     )
     rolled_over_tasks = rolled_over_result.scalars().all()
 
     high_priority_result = await db.execute(
         select(Task)
-        .where(Task.status == TaskStatus.backlog)
+        .where(Task.status == TaskStatus.backlog, Task.user_id == user.id)
         .where(Task.priority.in_(["critical", "high"]))
         .order_by(Task.priority, Task.created_at.desc())
         .limit(10)
@@ -308,21 +310,21 @@ async def get_suggestions(db: AsyncSession = Depends(get_db)):
 
     due_today_result = await db.execute(
         select(Task)
-        .where(Task.status == TaskStatus.backlog)
+        .where(Task.status == TaskStatus.backlog, Task.user_id == user.id)
         .where(Task.due_date == today)
     )
     due_today_tasks = due_today_result.scalars().all()
 
     recurring_result = await db.execute(
         select(RecurringTask)
-        .where(RecurringTask.is_active == True)
+        .where(RecurringTask.is_active == True, RecurringTask.user_id == user.id)
         .options(selectinload(RecurringTask.project))
     )
     all_recurring = recurring_result.scalars().all()
     matching_recurring = get_tasks_for_date(all_recurring, today)
 
     today_plan_result = await db.execute(
-        select(DailyPlan).where(DailyPlan.date == today)
+        select(DailyPlan).where(DailyPlan.date == today, DailyPlan.user_id == user.id)
     )
     today_plan = today_plan_result.scalar_one_or_none()
     
@@ -382,11 +384,39 @@ async def get_suggestions(db: AsyncSession = Depends(get_db)):
         "recurring_today": [recurring_to_dict(rt) for rt in recurring_suggestions],
     }
 
+    def recurring_to_dict(rt):
+        project_id = str(rt.project_id)
+        if hasattr(rt, 'project') and rt.project:
+            project_id = str(rt.project.id)
+        return {
+            "id": f"recurring_{rt.id}",
+            "project_id": project_id,
+            "title": rt.title,
+            "description": rt.description,
+            "source": "manual",
+            "external_key": None,
+            "external_url": None,
+            "status": "backlog",
+            "priority": rt.priority.value if hasattr(rt.priority, 'value') else rt.priority,
+            "due_date": None,
+            "category": rt.category,
+            "created_at": str(rt.created_at),
+            "updated_at": str(rt.updated_at),
+            "is_recurring": True,
+        }
+
+    return {
+        "rolled_over": [task_to_dict(t) for t in rolled_over_tasks],
+        "high_priority_backlog": [task_to_dict(t) for t in high_priority_tasks],
+        "due_today": [task_to_dict(t) for t in due_today_tasks],
+        "recurring_today": [recurring_to_dict(rt) for rt in recurring_suggestions],
+    }
+
 
 @router.post("/{plan_id}/close")
-async def close_plan(plan_id: UUID, db: AsyncSession = Depends(get_db)):
+async def close_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     plan = await db.get(DailyPlan, plan_id)
-    if not plan:
+    if not plan or plan.user_id != user.id:
         raise HTTPException(status_code=404, detail="Plan not found")
     if plan.status == DailyPlanStatus.closed:
         raise HTTPException(status_code=400, detail="Plan is already closed")
@@ -401,9 +431,9 @@ async def close_plan(plan_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{plan_id}/reopen")
-async def reopen_plan(plan_id: UUID, db: AsyncSession = Depends(get_db)):
+async def reopen_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     plan = await db.get(DailyPlan, plan_id)
-    if not plan:
+    if not plan or plan.user_id != user.id:
         raise HTTPException(status_code=404, detail="Plan not found")
     if plan.status == DailyPlanStatus.open:
         raise HTTPException(status_code=400, detail="Plan is already open")

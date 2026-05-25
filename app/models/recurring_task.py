@@ -26,6 +26,7 @@ class RecurringTask(Base):
     __tablename__ = "recurring_tasks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
@@ -37,6 +38,7 @@ class RecurringTask(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    user = relationship("User", back_populates="recurring_tasks")
     project = relationship("Project", back_populates="recurring_tasks")
     instances = relationship("RecurringTaskInstance", back_populates="recurring_task", cascade="all, delete-orphan")
     comments = relationship(
@@ -51,6 +53,7 @@ class RecurringTaskInstance(Base):
     __tablename__ = "recurring_task_instances"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     recurring_task_id = Column(UUID(as_uuid=True), ForeignKey("recurring_tasks.id", ondelete="CASCADE"), nullable=False)
     date = Column(DateTime(timezone=True), nullable=False)
     daily_task_id = Column(UUID(as_uuid=True), ForeignKey("daily_tasks.id", ondelete="SET NULL"), nullable=True)
@@ -58,5 +61,6 @@ class RecurringTaskInstance(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
+    user = relationship("User")
     recurring_task = relationship("RecurringTask", back_populates="instances")
     daily_task = relationship("DailyTask")

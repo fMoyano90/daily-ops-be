@@ -31,6 +31,7 @@ app.add_middleware(
 )
 
 from app.routers import (
+    auth_router,
     projects_router,
     tasks_router,
     daily_plans_router,
@@ -43,6 +44,7 @@ from app.routers import (
     task_comments_router,
 )
 
+app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(tasks_router)
 app.include_router(daily_plans_router)

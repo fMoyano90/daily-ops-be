@@ -5,9 +5,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models.jira_connection import DEFAULT_JIRA_JQL, JiraConnection
 from app.models.project import Project, ProjectType
 from app.models.task import Task, TaskSource
+from app.models.user import User
 from app.schemas.jira_connection import (
     JiraConnectionCreate,
     JiraConnectionResponse,
@@ -27,18 +29,19 @@ def _to_response(conn: JiraConnection) -> JiraConnectionResponse:
 
 
 @router.get("", response_model=list[JiraConnectionResponse])
-async def list_connections(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(JiraConnection).order_by(JiraConnection.created_at))
+async def list_connections(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    result = await db.execute(select(JiraConnection).where(JiraConnection.user_id == user.id).order_by(JiraConnection.created_at))
     return [_to_response(c) for c in result.scalars().all()]
 
 
 @router.post("", response_model=JiraConnectionResponse, status_code=status.HTTP_201_CREATED)
-async def create_connection(data: JiraConnectionCreate, db: AsyncSession = Depends(get_db)):
+async def create_connection(data: JiraConnectionCreate, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     project = Project(
         name=f"Jira: {data.name}",
         type=ProjectType.work,
         color=data.project_color or "#2563eb",
         is_active=True,
+        user_id=user.id,
     )
     db.add(project)
     await db.flush()
@@ -51,6 +54,7 @@ async def create_connection(data: JiraConnectionCreate, db: AsyncSession = Depen
         jql=data.jql or DEFAULT_JIRA_JQL,
         project_id=project.id,
         enabled=True,
+        user_id=user.id,
     )
     db.add(conn)
     await db.flush()
@@ -59,9 +63,9 @@ async def create_connection(data: JiraConnectionCreate, db: AsyncSession = Depen
 
 
 @router.get("/{connection_id}", response_model=JiraConnectionResponse)
-async def get_connection(connection_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_connection(connection_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     conn = await db.get(JiraConnection, connection_id)
-    if not conn:
+    if not conn or conn.user_id != user.id:
         raise HTTPException(status_code=404, detail="Conexión no encontrada")
     return _to_response(conn)
 
@@ -71,9 +75,10 @@ async def update_connection(
     connection_id: UUID,
     data: JiraConnectionUpdate,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     conn = await db.get(JiraConnection, connection_id)
-    if not conn:
+    if not conn or conn.user_id != user.id:
         raise HTTPException(status_code=404, detail="Conexión no encontrada")
 
     updates = data.model_dump(exclude_unset=True)
@@ -95,9 +100,10 @@ async def delete_connection(
     connection_id: UUID,
     purge_tasks: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     conn = await db.get(JiraConnection, connection_id)
-    if not conn:
+    if not conn or conn.user_id != user.id:
         raise HTTPException(status_code=404, detail="Conexión no encontrada")
 
     project_id = conn.project_id
@@ -107,6 +113,7 @@ async def delete_connection(
             delete(Task).where(
                 Task.project_id == project_id,
                 Task.source == TaskSource.jira,
+                Task.user_id == user.id,
             )
         )
 
@@ -115,9 +122,9 @@ async def delete_connection(
 
 
 @router.post("/{connection_id}/test", response_model=JiraTestResponse)
-async def test_connection(connection_id: UUID, db: AsyncSession = Depends(get_db)):
+async def test_connection(connection_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     conn = await db.get(JiraConnection, connection_id)
-    if not conn:
+    if not conn or conn.user_id != user.id:
         raise HTTPException(status_code=404, detail="Conexión no encontrada")
 
     try:
@@ -137,9 +144,9 @@ async def test_connection(connection_id: UUID, db: AsyncSession = Depends(get_db
 
 
 @router.post("/{connection_id}/sync", response_model=SyncResultResponse)
-async def sync_one(connection_id: UUID, db: AsyncSession = Depends(get_db)):
+async def sync_one(connection_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     conn = await db.get(JiraConnection, connection_id)
-    if not conn:
+    if not conn or conn.user_id != user.id:
         raise HTTPException(status_code=404, detail="Conexión no encontrada")
     result = await sync_connection(db, conn)
     return SyncResultResponse(**result.__dict__)
