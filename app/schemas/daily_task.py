@@ -1,0 +1,135 @@
+from datetime import datetime, time
+from typing import Optional, List
+from uuid import UUID
+from pydantic import BaseModel, field_validator, model_validator
+
+from app.models.daily_task import DailyTaskStatus
+from app.models.task import Priority
+from app.schemas.daily_subtask import DailySubtaskResponse
+from app.schemas.project import ProjectResponse
+from app.schemas.recurring_task import RecurringTaskResponse
+
+
+class DailyTaskCreate(BaseModel):
+    task_id: Optional[UUID] = None
+    recurring_task_id: Optional[UUID] = None
+    priority: Priority = Priority.medium
+
+
+class DailyTaskUpdate(BaseModel):
+    status: Optional[DailyTaskStatus] = None
+    priority: Optional[Priority] = None
+    sort_order: Optional[int] = None
+
+
+class DailyTaskResponse(BaseModel):
+    id: UUID
+    daily_plan_id: UUID
+    task_id: Optional[UUID]
+    recurring_task_id: Optional[UUID] = None
+    title_snapshot: str
+    description: Optional[str] = None
+    external_key: Optional[str] = None
+    external_url: Optional[str] = None
+    category: Optional[str] = None
+    meeting_time: Optional[time] = None
+    priority: Priority
+    status: DailyTaskStatus
+    total_seconds: int
+    sort_order: int
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    subtasks: List[DailySubtaskResponse] = []
+    project: Optional[ProjectResponse] = None
+    recurring_task: Optional[RecurringTaskResponse] = None
+
+    model_config = {"from_attributes": True}
+
+    @property
+    def is_recurring(self) -> bool:
+        return self.recurring_task_id is not None
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_project_from_task(cls, data):
+        if isinstance(data, dict):
+            if data.get("project") is None:
+                if data.get("task"):
+                    task = data["task"]
+                    if hasattr(task, "project"):
+                        data = dict(data)
+                        data["project"] = task.project
+                elif data.get("recurring_task"):
+                    rt = data["recurring_task"]
+                    if hasattr(rt, "project"):
+                        data = dict(data)
+                        data["project"] = rt.project
+            if data.get("description") is None:
+                task = data.get("task")
+                if task and hasattr(task, "description"):
+                    data = dict(data)
+                    data["description"] = task.description
+                else:
+                    rt = data.get("recurring_task")
+                    if rt and hasattr(rt, "description"):
+                        data = dict(data)
+                        data["description"] = rt.description
+            if data.get("external_key") is None or data.get("external_url") is None:
+                task = data.get("task")
+                if task:
+                    data = dict(data)
+                    if data.get("external_key") is None and hasattr(task, "external_key"):
+                        data["external_key"] = task.external_key
+                    if data.get("external_url") is None and hasattr(task, "external_url"):
+                        data["external_url"] = task.external_url
+            if data.get("category") is None:
+                task = data.get("task")
+                if task and getattr(task, "category", None):
+                    data = dict(data)
+                    data["category"] = task.category
+                else:
+                    rt = data.get("recurring_task")
+                    if rt and getattr(rt, "category", None):
+                        data = dict(data)
+                        data["category"] = rt.category
+            if data.get("meeting_time") is None:
+                task = data.get("task")
+                if task and getattr(task, "meeting_time", None):
+                    data = dict(data)
+                    data["meeting_time"] = task.meeting_time
+        elif hasattr(data, "__dict__"):
+            if getattr(data, "project", None) is None:
+                task = getattr(data, "task", None)
+                if task:
+                    project = getattr(task, "project", None)
+                    if project:
+                        data.__dict__["project"] = project
+                else:
+                    rt = getattr(data, "recurring_task", None)
+                    if rt:
+                        project = getattr(rt, "project", None)
+                        if project:
+                            data.__dict__["project"] = project
+            if getattr(data, "description", None) is None:
+                task = getattr(data, "task", None)
+                if task and getattr(task, "description", None):
+                    data.__dict__["description"] = task.description
+                else:
+                    rt = getattr(data, "recurring_task", None)
+                    if rt and getattr(rt, "description", None):
+                        data.__dict__["description"] = rt.description
+            task = getattr(data, "task", None)
+            if task:
+                if getattr(data, "external_key", None) is None and getattr(task, "external_key", None):
+                    data.__dict__["external_key"] = task.external_key
+                if getattr(data, "external_url", None) is None and getattr(task, "external_url", None):
+                    data.__dict__["external_url"] = task.external_url
+                if getattr(data, "category", None) is None and getattr(task, "category", None):
+                    data.__dict__["category"] = task.category
+                if getattr(data, "meeting_time", None) is None and getattr(task, "meeting_time", None):
+                    data.__dict__["meeting_time"] = task.meeting_time
+            if getattr(data, "category", None) is None:
+                rt = getattr(data, "recurring_task", None)
+                if rt and getattr(rt, "category", None):
+                    data.__dict__["category"] = rt.category
+        return data

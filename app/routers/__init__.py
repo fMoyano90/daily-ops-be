@@ -1,0 +1,10 @@
+from app.routers.projects import router as projects_router
+from app.routers.tasks import router as tasks_router
+from app.routers.daily_plans import router as daily_plans_router
+from app.routers.daily_tasks import router as daily_tasks_router
+from app.routers.subtasks import router as subtasks_router
+from app.routers.timers import router as timers_router
+from app.routers.history import router as history_router
+from app.routers.recurring_tasks import router as recurring_tasks_router
+from app.routers.jira_connections import router as jira_connections_router
+from app.routers.task_comments import router as task_comments_router
