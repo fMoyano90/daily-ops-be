@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from app.database import get_db
@@ -21,6 +21,30 @@ from app.services.recurring_engine import auto_add_for_today
 router = APIRouter(prefix="/api/v1/daily-plans", tags=["daily-plans"])
 
 
+def compute_live_total_seconds(task: DailyTask) -> int:
+    live = task.total_seconds
+    now = datetime.now(timezone.utc)
+    for session in task.timer_sessions:
+        if session.stopped_at is None:
+            started = session.started_at
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            delta = int((now - started).total_seconds())
+            live += max(0, delta)
+    return live
+
+
+def inject_live_seconds_for_task(task: DailyTask):
+    task.live_total_seconds = compute_live_total_seconds(task)
+    return task
+
+
+def inject_live_seconds(plan: DailyPlan):
+    for task in plan.tasks:
+        task.live_total_seconds = compute_live_total_seconds(task)
+    return plan
+
+
 @router.get("/today", response_model=DailyPlanResponse)
 async def get_today_plan(db: AsyncSession = Depends(get_db)):
     today = date.today()
@@ -35,6 +59,8 @@ async def get_today_plan(db: AsyncSession = Depends(get_db)):
             .selectinload(Task.project),
             selectinload(DailyPlan.tasks)
             .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.timer_sessions),
         )
     )
     plan = result.scalar_one_or_none()
@@ -53,6 +79,8 @@ async def get_today_plan(db: AsyncSession = Depends(get_db)):
                 .selectinload(Task.project),
                 selectinload(DailyPlan.tasks)
                 .selectinload(DailyTask.recurring_task),
+                selectinload(DailyPlan.tasks)
+                .selectinload(DailyTask.timer_sessions),
             )
         )
         plan = result.scalar_one()
@@ -70,9 +98,11 @@ async def get_today_plan(db: AsyncSession = Depends(get_db)):
             .selectinload(Task.project),
             selectinload(DailyPlan.tasks)
             .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.timer_sessions),
         )
     )
-    return result.scalar_one()
+    return inject_live_seconds(result.scalar_one())
 
 
 @router.get("/{plan_date}", response_model=DailyPlanResponse)

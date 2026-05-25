@@ -53,6 +53,13 @@ async def pause_timer(task_id: UUID, db: AsyncSession = Depends(get_db)):
     delta = active_session.stopped_at - active_session.started_at
     active_session.duration_seconds = int(delta.total_seconds())
 
+    total_result = await db.execute(
+        select(func.sum(TimerSession.duration_seconds))
+        .where(TimerSession.daily_task_id == task_id)
+    )
+    total_seconds = total_result.scalar() or 0
+    task.total_seconds = total_seconds
+
     task.status = DailyTaskStatus.paused
     await db.flush()
     await db.refresh(active_session)

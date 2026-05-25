@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from uuid import UUID
 
 from app.database import get_db
@@ -12,8 +12,10 @@ from app.models.daily_plan import DailyPlan
 from app.models.task import Task
 from app.models.project import Project
 from app.models.recurring_task import RecurringTask
+from app.models.timer_session import TimerSession
 from app.schemas.daily_task import DailyTaskUpdate, DailyTaskResponse
 from app.services.recurring_engine import mark_instance_completed, mark_instance_skipped
+from app.routers.daily_plans import inject_live_seconds, inject_live_seconds_for_task
 
 router = APIRouter(prefix="/api/v1/daily-tasks", tags=["daily-tasks"])
 
@@ -26,9 +28,18 @@ async def get_daily_task_with_relations(db: AsyncSession, task_id: UUID):
             selectinload(DailyTask.subtasks),
             selectinload(DailyTask.task).selectinload(Task.project),
             selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyTask.timer_sessions),
         )
     )
     return result.scalar_one_or_none()
+
+
+async def sync_total_seconds(db: AsyncSession, task: DailyTask):
+    result = await db.execute(
+        select(func.sum(TimerSession.duration_seconds))
+        .where(TimerSession.daily_task_id == task.id)
+    )
+    task.total_seconds = result.scalar() or 0
 
 
 @router.patch("/{task_id}", response_model=DailyTaskResponse)
@@ -40,6 +51,17 @@ async def update_daily_task(task_id: UUID, data: DailyTaskUpdate, db: AsyncSessi
     update_data = data.model_dump(exclude_unset=True)
     if "status" in update_data:
         if update_data["status"] == DailyTaskStatus.completed:
+            result = await db.execute(
+                select(TimerSession)
+                .where(TimerSession.daily_task_id == task_id)
+                .where(TimerSession.stopped_at == None)
+            )
+            active_session = result.scalar_one_or_none()
+            if active_session:
+                active_session.stopped_at = datetime.now(timezone.utc)
+                delta = active_session.stopped_at - active_session.started_at
+                active_session.duration_seconds = int(delta.total_seconds())
+            await sync_total_seconds(db, task)
             task.completed_at = datetime.utcnow()
         if update_data["status"] == DailyTaskStatus.in_progress and not task.started_at:
             task.started_at = datetime.utcnow()
@@ -51,7 +73,7 @@ async def update_daily_task(task_id: UUID, data: DailyTaskUpdate, db: AsyncSessi
     await db.refresh(task)
 
     result = await get_daily_task_with_relations(db, task_id)
-    return result
+    return inject_live_seconds_for_task(result)
 
 
 @router.post("/{task_id}/complete", response_model=DailyTaskResponse)
@@ -59,6 +81,19 @@ async def complete_daily_task(task_id: UUID, db: AsyncSession = Depends(get_db))
     task = await db.get(DailyTask, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Daily task not found")
+
+    result = await db.execute(
+        select(TimerSession)
+        .where(TimerSession.daily_task_id == task_id)
+        .where(TimerSession.stopped_at == None)
+    )
+    active_session = result.scalar_one_or_none()
+    if active_session:
+        active_session.stopped_at = datetime.now(timezone.utc)
+        delta = active_session.stopped_at - active_session.started_at
+        active_session.duration_seconds = int(delta.total_seconds())
+
+    await sync_total_seconds(db, task)
 
     task.status = DailyTaskStatus.completed
     task.completed_at = datetime.utcnow()
@@ -71,7 +106,7 @@ async def complete_daily_task(task_id: UUID, db: AsyncSession = Depends(get_db))
     await db.refresh(task)
 
     result = await get_daily_task_with_relations(db, task_id)
-    return result
+    return inject_live_seconds_for_task(result)
 
 
 @router.put("/{plan_id}/tasks/order")

@@ -1,7 +1,7 @@
-from datetime import datetime, time
-from typing import Optional, List
+from datetime import datetime, time, timezone
+from typing import Optional, List, Any
 from uuid import UUID
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, computed_field
 
 from app.models.daily_task import DailyTaskStatus
 from app.models.task import Priority
@@ -36,6 +36,7 @@ class DailyTaskResponse(BaseModel):
     priority: Priority
     status: DailyTaskStatus
     total_seconds: int
+    live_total_seconds: int = 0
     sort_order: int
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
@@ -44,6 +45,8 @@ class DailyTaskResponse(BaseModel):
     recurring_task: Optional[RecurringTaskResponse] = None
 
     model_config = {"from_attributes": True}
+
+    timer_sessions: List[Any] = Field(default_factory=list, exclude=True)
 
     @property
     def is_recurring(self) -> bool:
