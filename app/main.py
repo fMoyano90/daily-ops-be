@@ -42,6 +42,7 @@ from app.routers import (
     recurring_tasks_router,
     jira_connections_router,
     task_comments_router,
+    push_router,
 )
 
 app.include_router(auth_router)
@@ -55,6 +56,7 @@ app.include_router(history_router)
 app.include_router(recurring_tasks_router)
 app.include_router(jira_connections_router)
 app.include_router(task_comments_router)
+app.include_router(push_router)
 
 
 @app.get("/")

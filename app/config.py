@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     FOUNDER_PASSWORD: str = ""
     FOUNDER_DISPLAY_NAME: str = "Felipe Moyano"
 
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_CONTACT_EMAIL: str = "f.moyano90@gmail.com"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

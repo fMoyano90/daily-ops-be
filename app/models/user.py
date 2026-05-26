@@ -27,3 +27,4 @@ class User(Base):
     recurring_tasks = relationship("RecurringTask", back_populates="user", cascade="all, delete-orphan")
     jira_connections = relationship("JiraConnection", back_populates="user", cascade="all, delete-orphan")
     task_comments = relationship("TaskComment", back_populates="user", cascade="all, delete-orphan")
+    push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
