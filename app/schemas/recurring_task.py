@@ -23,6 +23,7 @@ class RecurringTaskUpdate(BaseModel):
     description: Optional[str] = None
     priority: Optional[Priority] = None
     category: Optional[str] = None
+    project_id: Optional[UUID] = None
     recurrence_type: Optional[RecurringTaskType] = None
     recurrence_days: Optional[List[int]] = None
     is_active: Optional[bool] = None

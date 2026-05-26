@@ -113,6 +113,11 @@ async def update_recurring_task(
         raise HTTPException(status_code=404, detail="Recurring task not found")
 
     update_data = data.model_dump(exclude_unset=True)
+    if "project_id" in update_data:
+        project = await db.get(Project, update_data["project_id"])
+        if not project or project.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Project not found")
+
     for key, value in update_data.items():
         setattr(task, key, value)
 

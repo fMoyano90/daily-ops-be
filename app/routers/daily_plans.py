@@ -80,7 +80,7 @@ async def get_today_plan(db: AsyncSession = Depends(get_db), user: User = Depend
                 .selectinload(DailyTask.task)
                 .selectinload(Task.project),
                 selectinload(DailyPlan.tasks)
-                .selectinload(DailyTask.recurring_task),
+                .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
                 selectinload(DailyPlan.tasks)
                 .selectinload(DailyTask.timer_sessions),
             )
@@ -150,6 +150,7 @@ async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depend
         if not task:
             continue
         daily_task = DailyTask(
+            user_id=plan.user_id,
             daily_plan_id=plan.id,
             task_id=task.id,
             title_snapshot=task.title,
@@ -164,8 +165,22 @@ async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depend
     for dt in added:
         await db.refresh(dt)
 
-    await db.refresh(plan)
-    return plan
+    result = await db.execute(
+        select(DailyPlan)
+        .where(DailyPlan.id == plan.id)
+        .options(
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.subtasks),
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.task)
+            .selectinload(Task.project),
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.timer_sessions),
+        )
+    )
+    return inject_live_seconds(result.scalar_one())
 
 
 @router.post("/{plan_id}/tasks", response_model=DailyTaskResponse, status_code=status.HTTP_201_CREATED)
@@ -205,11 +220,13 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
                     selectinload(DailyTask.subtasks),
                     selectinload(DailyTask.task).selectinload(Task.project),
                     selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+                    selectinload(DailyTask.timer_sessions),
                 )
             )
             return result.scalar_one()
 
         daily_task = DailyTask(
+            user_id=plan.user_id,
             daily_plan_id=plan.id,
             recurring_task_id=recurring_task.id,
             title_snapshot=recurring_task.title,
@@ -231,6 +248,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
             existing_instance.daily_task_id = daily_task.id
         else:
             instance = RecurringTaskInstance(
+                user_id=plan.user_id,
                 recurring_task_id=recurring_task.id,
                 date=today_start,
                 daily_task_id=daily_task.id,
@@ -255,11 +273,13 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
                 .options(
                     selectinload(DailyTask.subtasks),
                     selectinload(DailyTask.task).selectinload(Task.project),
+                    selectinload(DailyTask.timer_sessions),
                 )
             )
             return result.scalar_one()
 
         daily_task = DailyTask(
+            user_id=plan.user_id,
             daily_plan_id=plan.id,
             task_id=task.id,
             title_snapshot=task.title,
@@ -278,6 +298,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
             selectinload(DailyTask.subtasks),
             selectinload(DailyTask.task).selectinload(Task.project),
             selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyTask.timer_sessions),
         )
         .execution_options(populate_existing=True)
     )
@@ -296,6 +317,7 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
         .join(DailyPlan)
         .where(DailyPlan.date == yesterday, DailyPlan.user_id == user.id)
         .where(DailyTask.status == DailyTaskStatus.rolled_over)
+        .options(selectinload(DailyTask.task).selectinload(Task.project))
     )
     rolled_over_tasks = rolled_over_result.scalars().all()
 
@@ -340,49 +362,24 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
     recurring_suggestions = [rt for rt in matching_recurring if rt.id not in existing_recurring_in_plan]
 
     def task_to_dict(t):
+        project_id = None
+        if t.task_id and hasattr(t, 'task') and t.task:
+            project_id = str(t.task.project_id)
         return {
             "id": str(t.id),
-            "project_id": str(t.project_id),
-            "title": t.title,
-            "description": t.description,
-            "source": t.source.value if hasattr(t.source, 'value') else t.source,
-            "external_key": t.external_key,
-            "external_url": t.external_url,
+            "project_id": project_id,
+            "title": t.title_snapshot,
+            "description": None,
+            "source": "manual",
+            "external_key": t.external_key if hasattr(t, 'external_key') else None,
+            "external_url": t.external_url if hasattr(t, 'external_url') else None,
             "status": t.status.value if hasattr(t.status, 'value') else t.status,
             "priority": t.priority.value if hasattr(t.priority, 'value') else t.priority,
-            "due_date": str(t.due_date) if t.due_date else None,
-            "category": t.category,
-            "created_at": str(t.created_at),
-            "updated_at": str(t.updated_at),
-        }
-
-    def recurring_to_dict(rt):
-        project_id = str(rt.project_id)
-        if hasattr(rt, 'project') and rt.project:
-            project_id = str(rt.project.id)
-        return {
-            "id": f"recurring_{rt.id}",
-            "project_id": project_id,
-            "title": rt.title,
-            "description": rt.description,
-            "source": "manual",
-            "external_key": None,
-            "external_url": None,
-            "status": "backlog",
-            "priority": rt.priority.value if hasattr(rt.priority, 'value') else rt.priority,
             "due_date": None,
-            "category": rt.category,
-            "created_at": str(rt.created_at),
-            "updated_at": str(rt.updated_at),
-            "is_recurring": True,
+            "category": t.category if hasattr(t, 'category') else None,
+            "created_at": str(t.started_at) if t.started_at else None,
+            "updated_at": str(t.completed_at) if t.completed_at else None,
         }
-
-    return {
-        "rolled_over": [task_to_dict(t) for t in rolled_over_tasks],
-        "high_priority_backlog": [task_to_dict(t) for t in high_priority_tasks],
-        "due_today": [task_to_dict(t) for t in due_today_tasks],
-        "recurring_today": [recurring_to_dict(rt) for rt in recurring_suggestions],
-    }
 
     def recurring_to_dict(rt):
         project_id = str(rt.project_id)
