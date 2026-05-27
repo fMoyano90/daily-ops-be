@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "https://dailytaskops.netlify.app"]
     APP_NAME: str = "DailyOps API"
     APP_VERSION: str = "0.1.0"
+    APP_TIMEZONE: str = "America/Santiago"
 
     JIRA_ENCRYPTION_KEY: str = ""
     JIRA_SYNC_ENABLED: bool = True

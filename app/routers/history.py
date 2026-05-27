@@ -13,6 +13,7 @@ from app.models.daily_subtask import DailySubtask
 from app.models.task import Task
 from app.models.project import Project
 from app.models.user import User
+from app.utils.timezone import local_today
 
 router = APIRouter(prefix="/api/v1/history", tags=["history"])
 
@@ -146,7 +147,7 @@ async def get_weekly_summary(
     user: User = Depends(get_current_user),
 ):
     if not week_start:
-        today = date.today()
+        today = local_today()
         week_start = today - timedelta(days=today.weekday())
 
     week_end = week_start + timedelta(days=6)

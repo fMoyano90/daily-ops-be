@@ -8,6 +8,7 @@ from app.models.recurring_task import RecurringTask, RecurringTaskInstance, Recu
 from app.models.daily_task import DailyTask, DailyTaskStatus
 from app.models.daily_plan import DailyPlan
 from app.models.task import Priority
+from app.utils.timezone import local_today
 
 
 def get_tasks_for_date(recurring_tasks: list[RecurringTask], target_date: date) -> list[RecurringTask]:
@@ -30,7 +31,7 @@ def get_tasks_for_date(recurring_tasks: list[RecurringTask], target_date: date) 
 
 
 async def auto_add_for_today(db: AsyncSession, plan: DailyPlan) -> int:
-    today = date.today()
+    today = local_today()
     today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
     today_end = datetime(today.year, today.month, today.day, 23, 59, 59)
 

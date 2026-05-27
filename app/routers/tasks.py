@@ -11,6 +11,7 @@ from app.models.task import Task, TaskStatus, TaskSource, Priority
 from app.models.recurring_task import RecurringTask, RecurringTaskInstance, RecurringInstanceStatus, RecurringTaskType
 from app.models.user import User
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
+from app.utils.timezone import local_today
 import calendar
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
@@ -59,7 +60,7 @@ def recurring_matches_today(rt: RecurringTask, target_date: date) -> bool:
 
 @router.get("/backlog")
 async def get_backlog(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
-    today = date.today()
+    today = local_today()
     today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
     today_end = datetime(today.year, today.month, today.day, 23, 59, 59)
 

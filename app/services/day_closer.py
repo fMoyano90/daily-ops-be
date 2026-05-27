@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.daily_plan import DailyPlan, DailyPlanStatus
 from app.models.daily_task import DailyTask, DailyTaskStatus
 from app.models.task import Task, TaskStatus
+from app.utils.timezone import local_today
 
 
 async def close_day_service(db: AsyncSession, plan: DailyPlan) -> dict:
@@ -59,7 +60,7 @@ async def close_day_service(db: AsyncSession, plan: DailyPlan) -> dict:
 
 async def auto_close_previous_days(db: AsyncSession) -> list[dict]:
     """Close all open plans from previous days (before today), per user."""
-    today = date.today()
+    today = local_today()
 
     users_result = await db.execute(select(User).where(User.is_active == True))
     users = users_result.scalars().all()

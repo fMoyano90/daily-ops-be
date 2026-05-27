@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import async_session
 from app.services.jira_sync import sync_all_enabled
 from app.services.day_closer import auto_close_previous_days
+from app.utils.timezone import app_tz
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ def start_scheduler() -> Optional[AsyncIOScheduler]:
     if _scheduler is not None:
         return _scheduler
 
-    scheduler = AsyncIOScheduler()
+    scheduler = AsyncIOScheduler(timezone=app_tz())
     
     if settings.JIRA_SYNC_ENABLED:
         scheduler.add_job(

@@ -20,6 +20,7 @@ from app.schemas.task import TaskResponse
 from app.services.day_closer import close_day_service
 from app.services.recurring_engine import auto_add_for_today
 from app.services.subtask_carryover import carry_over_subtasks
+from app.utils.timezone import local_today
 
 router = APIRouter(prefix="/api/v1/daily-plans", tags=["daily-plans"])
 
@@ -50,7 +51,7 @@ def inject_live_seconds(plan: DailyPlan):
 
 @router.get("/today", response_model=DailyPlanResponse)
 async def get_today_plan(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
-    today = date.today()
+    today = local_today()
     result = await db.execute(
         select(DailyPlan)
         .where(DailyPlan.date == today, DailyPlan.user_id == user.id)
@@ -132,7 +133,7 @@ async def create_daily_plan(data: DailyPlanCreate, db: AsyncSession = Depends(ge
 
 @router.post("/today/tasks", response_model=DailyPlanResponse, status_code=status.HTTP_201_CREATED)
 async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
-    today = date.today()
+    today = local_today()
     result = await db.execute(select(DailyPlan).where(DailyPlan.date == today, DailyPlan.user_id == user.id))
     plan = result.scalar_one_or_none()
     if not plan:
@@ -316,7 +317,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
 async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     from app.services.recurring_engine import get_tasks_for_date
     
-    today = date.today()
+    today = local_today()
     yesterday = today - timedelta(days=1)
 
     rolled_over_result = await db.execute(
