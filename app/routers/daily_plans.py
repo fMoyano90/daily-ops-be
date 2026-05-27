@@ -371,9 +371,12 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
 
     def task_to_dict(t):
         project_id = None
+        source_task = None
         if hasattr(t, 'task_id') and t.task_id and hasattr(t, 'task') and t.task:
+            source_task = t.task
             project_id = str(t.task.project_id)
         elif hasattr(t, 'project_id') and t.project_id:
+            source_task = t
             project_id = str(t.project_id)
         return {
             "id": str(t.id),
@@ -385,8 +388,9 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
             "external_url": t.external_url if hasattr(t, 'external_url') else None,
             "status": t.status.value if hasattr(t.status, 'value') else t.status,
             "priority": t.priority.value if hasattr(t.priority, 'value') else t.priority,
-            "due_date": None,
-            "category": t.category if hasattr(t, 'category') else None,
+            "due_date": str(source_task.due_date) if source_task and getattr(source_task, 'due_date', None) else None,
+            "category": t.category if hasattr(t, 'category') else getattr(source_task, 'category', None),
+            "meeting_time": str(source_task.meeting_time) if source_task and getattr(source_task, 'meeting_time', None) else None,
             "created_at": str(t.started_at) if hasattr(t, 'started_at') and t.started_at else None,
             "updated_at": str(t.completed_at) if hasattr(t, 'completed_at') and t.completed_at else None,
         }
@@ -407,6 +411,7 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
             "priority": rt.priority.value if hasattr(rt.priority, 'value') else rt.priority,
             "due_date": None,
             "category": rt.category,
+            "meeting_time": None,
             "created_at": str(rt.created_at),
             "updated_at": str(rt.updated_at),
             "is_recurring": True,

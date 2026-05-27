@@ -1,4 +1,4 @@
-from datetime import datetime, time, timezone
+from datetime import datetime, date, time, timezone
 from typing import Optional, List, Any
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator, computed_field
@@ -32,6 +32,7 @@ class DailyTaskResponse(BaseModel):
     external_key: Optional[str] = None
     external_url: Optional[str] = None
     category: Optional[str] = None
+    due_date: Optional[date] = None
     meeting_time: Optional[time] = None
     priority: Priority
     status: DailyTaskStatus
@@ -100,6 +101,11 @@ class DailyTaskResponse(BaseModel):
                 if task and getattr(task, "meeting_time", None):
                     data = dict(data)
                     data["meeting_time"] = task.meeting_time
+            if data.get("due_date") is None:
+                task = data.get("task")
+                if task and getattr(task, "due_date", None):
+                    data = dict(data)
+                    data["due_date"] = task.due_date
         elif hasattr(data, "__dict__"):
             if getattr(data, "project", None) is None:
                 task = getattr(data, "task", None)
@@ -129,6 +135,8 @@ class DailyTaskResponse(BaseModel):
                     data.__dict__["external_url"] = task.external_url
                 if getattr(data, "category", None) is None and getattr(task, "category", None):
                     data.__dict__["category"] = task.category
+                if getattr(data, "due_date", None) is None and getattr(task, "due_date", None):
+                    data.__dict__["due_date"] = task.due_date
                 if getattr(data, "meeting_time", None) is None and getattr(task, "meeting_time", None):
                     data.__dict__["meeting_time"] = task.meeting_time
             if getattr(data, "category", None) is None:
