@@ -370,12 +370,14 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
 
     def task_to_dict(t):
         project_id = None
-        if t.task_id and hasattr(t, 'task') and t.task:
+        if hasattr(t, 'task_id') and t.task_id and hasattr(t, 'task') and t.task:
             project_id = str(t.task.project_id)
+        elif hasattr(t, 'project_id') and t.project_id:
+            project_id = str(t.project_id)
         return {
             "id": str(t.id),
             "project_id": project_id,
-            "title": t.title_snapshot,
+            "title": t.title_snapshot if hasattr(t, 'title_snapshot') else t.title,
             "description": None,
             "source": "manual",
             "external_key": t.external_key if hasattr(t, 'external_key') else None,
@@ -384,8 +386,8 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
             "priority": t.priority.value if hasattr(t.priority, 'value') else t.priority,
             "due_date": None,
             "category": t.category if hasattr(t, 'category') else None,
-            "created_at": str(t.started_at) if t.started_at else None,
-            "updated_at": str(t.completed_at) if t.completed_at else None,
+            "created_at": str(t.started_at) if hasattr(t, 'started_at') and t.started_at else None,
+            "updated_at": str(t.completed_at) if hasattr(t, 'completed_at') and t.completed_at else None,
         }
 
     def recurring_to_dict(rt):
