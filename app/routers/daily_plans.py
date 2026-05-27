@@ -19,6 +19,7 @@ from app.schemas.project import ProjectResponse
 from app.schemas.task import TaskResponse
 from app.services.day_closer import close_day_service
 from app.services.recurring_engine import auto_add_for_today
+from app.services.subtask_carryover import carry_over_subtasks
 
 router = APIRouter(prefix="/api/v1/daily-plans", tags=["daily-plans"])
 
@@ -163,6 +164,9 @@ async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depend
 
     await db.flush()
     for dt in added:
+        await carry_over_subtasks(db, dt)
+    await db.flush()
+    for dt in added:
         await db.refresh(dt)
 
     result = await db.execute(
@@ -236,6 +240,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
         )
         db.add(daily_task)
         await db.flush()
+        await carry_over_subtasks(db, daily_task)
 
         today_start = datetime(plan.date.year, plan.date.month, plan.date.day, 0, 0, 0)
         existing_instance_result = await db.execute(
@@ -288,6 +293,8 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
             sort_order=max_order + 1,
         )
         db.add(daily_task)
+        await db.flush()
+        await carry_over_subtasks(db, daily_task)
 
     await db.commit()
     
