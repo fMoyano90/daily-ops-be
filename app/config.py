@@ -4,7 +4,7 @@ from typing import List
 
 class Settings(BaseSettings):
     DATABASE_URL: str
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "https://dailytaskops.netlify.app"]
     APP_NAME: str = "DailyOps API"
     APP_VERSION: str = "0.1.0"
 
