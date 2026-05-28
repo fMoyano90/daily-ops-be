@@ -10,3 +10,4 @@ from app.routers.recurring_tasks import router as recurring_tasks_router
 from app.routers.jira_connections import router as jira_connections_router
 from app.routers.task_comments import router as task_comments_router
 from app.routers.push import router as push_router
+from app.routers.goals import router as goals_router

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import select
@@ -50,7 +50,7 @@ async def sync_connection(db: AsyncSession, conn: JiraConnection) -> SyncResult:
     except Exception as exc:
         result.status = "error"
         result.errors.append(f"No se pudo desencriptar token: {exc}")
-        conn.last_sync_at = datetime.utcnow()
+        conn.last_sync_at = datetime.now(timezone.utc)
         conn.last_sync_status = "error"
         conn.last_sync_error = result.errors[-1][:2000]
         await db.flush()
@@ -62,7 +62,7 @@ async def sync_connection(db: AsyncSession, conn: JiraConnection) -> SyncResult:
     except (JiraAuthError, JiraApiError) as exc:
         result.status = "error"
         result.errors.append(str(exc))
-        conn.last_sync_at = datetime.utcnow()
+        conn.last_sync_at = datetime.now(timezone.utc)
         conn.last_sync_status = "error"
         conn.last_sync_error = str(exc)[:2000]
         await db.flush()
@@ -70,7 +70,7 @@ async def sync_connection(db: AsyncSession, conn: JiraConnection) -> SyncResult:
     except Exception as exc:
         result.status = "error"
         result.errors.append(f"Error inesperado: {exc}")
-        conn.last_sync_at = datetime.utcnow()
+        conn.last_sync_at = datetime.now(timezone.utc)
         conn.last_sync_status = "error"
         conn.last_sync_error = str(exc)[:2000]
         await db.flush()
@@ -84,7 +84,7 @@ async def sync_connection(db: AsyncSession, conn: JiraConnection) -> SyncResult:
             result.errors.append(f"{issue.key}: {exc}")
             logger.exception("Error procesando issue %s", issue.key)
 
-    conn.last_sync_at = datetime.utcnow()
+    conn.last_sync_at = datetime.now(timezone.utc)
     conn.last_sync_status = "ok" if not result.errors else "partial"
     conn.last_sync_error = "; ".join(result.errors)[:2000] if result.errors else None
     result.status = conn.last_sync_status
@@ -131,7 +131,7 @@ async def _upsert_issue(
     existing.due_date = issue.due_date
     if issue.issue_type:
         existing.category = issue.issue_type
-    existing.updated_at = datetime.utcnow()
+    existing.updated_at = datetime.now(timezone.utc)
     result.updated += 1
 
 

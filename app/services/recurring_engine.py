@@ -1,4 +1,4 @@
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -120,7 +120,7 @@ async def mark_instance_completed(db: AsyncSession, daily_task_id: str):
     instance = result.scalar_one_or_none()
     if instance:
         instance.status = RecurringInstanceStatus.completed
-        instance.completed_at = datetime.utcnow()
+        instance.completed_at = datetime.now(timezone.utc)
         await db.flush()
 
 

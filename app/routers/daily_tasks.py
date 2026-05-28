@@ -64,9 +64,9 @@ async def update_daily_task(task_id: UUID, data: DailyTaskUpdate, db: AsyncSessi
                 delta = active_session.stopped_at - active_session.started_at
                 active_session.duration_seconds = int(delta.total_seconds())
             await sync_total_seconds(db, task)
-            task.completed_at = datetime.utcnow()
+            task.completed_at = datetime.now(timezone.utc)
         if update_data["status"] == DailyTaskStatus.in_progress and not task.started_at:
-            task.started_at = datetime.utcnow()
+            task.started_at = datetime.now(timezone.utc)
 
     for key, value in update_data.items():
         setattr(task, key, value)
@@ -98,7 +98,7 @@ async def complete_daily_task(task_id: UUID, db: AsyncSession = Depends(get_db),
     await sync_total_seconds(db, task)
 
     task.status = DailyTaskStatus.completed
-    task.completed_at = datetime.utcnow()
+    task.completed_at = datetime.now(timezone.utc)
     await db.flush()
 
     if task.recurring_task_id:

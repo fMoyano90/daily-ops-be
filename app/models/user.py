@@ -28,3 +28,5 @@ class User(Base):
     jira_connections = relationship("JiraConnection", back_populates="user", cascade="all, delete-orphan")
     task_comments = relationship("TaskComment", back_populates="user", cascade="all, delete-orphan")
     push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
+    goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
+    goal_comments = relationship("GoalComment", back_populates="user", cascade="all, delete-orphan")

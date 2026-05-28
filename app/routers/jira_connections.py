@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.jira_connection import DEFAULT_JIRA_JQL, JiraConnection
@@ -153,6 +154,11 @@ async def sync_one(connection_id: UUID, db: AsyncSession = Depends(get_db), user
 
 
 @router.post("/sync-all", response_model=list[SyncResultResponse])
-async def sync_all(db: AsyncSession = Depends(get_db)):
+async def sync_all(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if user.email != settings.FOUNDER_EMAIL:
+        raise HTTPException(status_code=403, detail="Admin access required")
     results = await sync_all_enabled(db)
     return [SyncResultResponse(**r.__dict__) for r in results]

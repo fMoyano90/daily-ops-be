@@ -25,6 +25,15 @@ async def verify_task_ownership(db: AsyncSession, task_id: UUID, user: User):
 async def start_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     task = await verify_task_ownership(db, task_id, user)
 
+    result = await db.execute(
+        select(TimerSession)
+        .where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id)
+        .where(TimerSession.stopped_at == None)
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="Timer already running for this task")
+
     if task.status == DailyTaskStatus.planned:
         task.status = DailyTaskStatus.in_progress
         task.started_at = datetime.now(timezone.utc)
@@ -75,6 +84,15 @@ async def pause_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: U
 @router.post("/resume", response_model=TimerStartResponse, status_code=status.HTTP_201_CREATED)
 async def resume_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     task = await verify_task_ownership(db, task_id, user)
+
+    result = await db.execute(
+        select(TimerSession)
+        .where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id)
+        .where(TimerSession.stopped_at == None)
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="Timer already running for this task")
 
     task.status = DailyTaskStatus.in_progress
 

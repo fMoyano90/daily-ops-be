@@ -9,3 +9,4 @@ from app.models.recurring_task import RecurringTask, RecurringTaskInstance
 from app.models.jira_connection import JiraConnection
 from app.models.task_comment import TaskComment
 from app.models.push_subscription import PushSubscription
+from app.models.goal import Goal, GoalStep, GoalComment

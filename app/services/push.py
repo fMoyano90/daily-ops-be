@@ -83,11 +83,11 @@ async def send_to_user(
 
 async def touch_subscription(db: AsyncSession, sub: PushSubscription) -> None:
     """Update last_seen_at; cheap heartbeat from the frontend."""
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     await db.execute(
         update(PushSubscription)
         .where(PushSubscription.id == sub.id)
-        .values(last_seen_at=datetime.utcnow())
+        .values(last_seen_at=datetime.now(timezone.utc))
     )
     await db.commit()

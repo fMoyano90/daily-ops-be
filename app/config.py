@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import model_validator
 from typing import List
 
 
@@ -31,6 +32,14 @@ class Settings(BaseSettings):
     VAPID_CONTACT_EMAIL: str = "f.moyano90@gmail.com"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @model_validator(mode="after")
+    def validate_secrets(self):
+        if not self.JWT_SECRET_KEY:
+            raise ValueError("JWT_SECRET_KEY must be set in environment")
+        if not self.JIRA_ENCRYPTION_KEY:
+            raise ValueError("JIRA_ENCRYPTION_KEY must be set in environment")
+        return self
 
 
 settings = Settings()
