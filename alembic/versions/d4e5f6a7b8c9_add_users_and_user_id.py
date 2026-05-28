@@ -10,14 +10,11 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from passlib.context import CryptContext
 
 revision = 'd4e5f6a7b8c9'
 down_revision = 'c3d4e5f6a7b8'
 branch_labels = None
 depends_on = None
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 TABLES_WITH_USER = [
     'projects',
@@ -34,7 +31,10 @@ TABLES_WITH_USER = [
 
 
 def upgrade():
+    from passlib.context import CryptContext
+
     conn = op.get_bind()
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
     op.create_table(
         'users',
@@ -47,8 +47,8 @@ def upgrade():
     )
 
     founder_id = uuid.uuid4()
-    founder_email = os.environ.get('FOUNDER_EMAIL', 'f.moyano90@gmail.com')
-    founder_password = os.environ.get('FOUNDER_PASSWORD', '47163978Fmc..')
+    founder_email = os.environ['FOUNDER_EMAIL']
+    founder_password = os.environ['FOUNDER_PASSWORD']
     founder_display_name = os.environ.get('FOUNDER_DISPLAY_NAME', 'Felipe Moyano')
 
     conn.execute(

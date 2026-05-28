@@ -44,6 +44,7 @@ from app.routers import (
     task_comments_router,
     push_router,
     goals_router,
+    emotions_router,
 )
 
 app.include_router(auth_router)
@@ -59,6 +60,7 @@ app.include_router(jira_connections_router)
 app.include_router(task_comments_router)
 app.include_router(push_router)
 app.include_router(goals_router)
+app.include_router(emotions_router)
 
 
 @app.get("/")

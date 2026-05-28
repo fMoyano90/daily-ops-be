@@ -31,3 +31,4 @@ class Project(Base):
     tasks = relationship("Task", back_populates="project", cascade="all, delete-orphan")
     recurring_tasks = relationship("RecurringTask", back_populates="project", cascade="all, delete-orphan")
     goals = relationship("Goal", back_populates="project", cascade="all, delete-orphan")
+    emotion_entries = relationship("EmotionEntry", back_populates="project")

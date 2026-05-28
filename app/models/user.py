@@ -30,3 +30,4 @@ class User(Base):
     push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
     goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
     goal_comments = relationship("GoalComment", back_populates="user", cascade="all, delete-orphan")
+    emotion_entries = relationship("EmotionEntry", back_populates="user", cascade="all, delete-orphan")

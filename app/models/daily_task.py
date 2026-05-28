@@ -41,3 +41,4 @@ class DailyTask(Base):
     recurring_task = relationship("RecurringTask")
     subtasks = relationship("DailySubtask", back_populates="daily_task", cascade="all, delete-orphan", order_by="DailySubtask.sort_order")
     timer_sessions = relationship("TimerSession", back_populates="daily_task", cascade="all, delete-orphan")
+    emotion_entries = relationship("EmotionEntry", back_populates="daily_task")
