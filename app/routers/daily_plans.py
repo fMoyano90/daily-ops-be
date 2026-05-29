@@ -49,70 +49,46 @@ def inject_live_seconds(plan: DailyPlan):
     return plan
 
 
+def _today_plan_query(user_id: UUID):
+    """Reusable query builder with all eager loads for daily plans."""
+    return (
+        select(DailyPlan)
+        .where(DailyPlan.user_id == user_id)
+        .options(
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.subtasks),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.task).selectinload(Task.project),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.timer_sessions),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.emotion_entries),
+        )
+    )
+
+
 @router.get("/today", response_model=DailyPlanResponse)
 async def get_today_plan(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     today = local_today()
-    result = await db.execute(
-        select(DailyPlan)
-        .where(DailyPlan.date == today, DailyPlan.user_id == user.id)
-        .options(
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.subtasks),
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.task)
-            .selectinload(Task.project),
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.timer_sessions),
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.emotion_entries),
-        )
-    )
+
+    result = await db.execute(_today_plan_query(user.id).where(DailyPlan.date == today))
     plan = result.scalar_one_or_none()
+
     if not plan:
         plan = DailyPlan(date=today, user_id=user.id)
         db.add(plan)
         await db.commit()
-        result = await db.execute(
-            select(DailyPlan)
-            .where(DailyPlan.date == today, DailyPlan.user_id == user.id)
-            .options(
-                selectinload(DailyPlan.tasks)
-                .selectinload(DailyTask.subtasks),
-                selectinload(DailyPlan.tasks)
-                .selectinload(DailyTask.task)
-                .selectinload(Task.project),
-                selectinload(DailyPlan.tasks)
-                .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
-                selectinload(DailyPlan.tasks)
-                .selectinload(DailyTask.timer_sessions),
-                selectinload(DailyPlan.tasks)
-                .selectinload(DailyTask.emotion_entries),
-            )
-        )
+
+        await auto_add_for_today(db, plan)
+        await db.commit()
+
+        result = await db.execute(_today_plan_query(user.id).where(DailyPlan.id == plan.id))
+        plan = result.scalar_one()
+    else:
+        await auto_add_for_today(db, plan)
+        await db.commit()
+
+        result = await db.execute(_today_plan_query(user.id).where(DailyPlan.id == plan.id))
         plan = result.scalar_one()
 
-    await auto_add_for_today(db, plan)
-
-    result = await db.execute(
-        select(DailyPlan)
-        .where(DailyPlan.id == plan.id)
-        .options(
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.subtasks),
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.task)
-            .selectinload(Task.project),
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.timer_sessions),
-            selectinload(DailyPlan.tasks)
-            .selectinload(DailyTask.emotion_entries),
-        )
-    )
-    return inject_live_seconds(result.scalar_one())
+    return inject_live_seconds(plan)
 
 
 @router.get("/{plan_date}", response_model=DailyPlanResponse)

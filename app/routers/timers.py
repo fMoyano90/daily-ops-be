@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func, delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 from uuid import UUID
@@ -29,6 +30,7 @@ async def start_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: U
         select(TimerSession)
         .where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id)
         .where(TimerSession.stopped_at == None)
+        .with_for_update(skip_locked=True)
     )
     existing = result.scalar_one_or_none()
     if existing:
@@ -38,14 +40,18 @@ async def start_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: U
         task.status = DailyTaskStatus.in_progress
         task.started_at = datetime.now(timezone.utc)
 
-    session = TimerSession(
-        daily_task_id=task_id,
-        user_id=user.id,
-        started_at=datetime.now(timezone.utc),
-    )
-    db.add(session)
-    await db.flush()
-    await db.refresh(session)
+    try:
+        session = TimerSession(
+            daily_task_id=task_id,
+            user_id=user.id,
+            started_at=datetime.now(timezone.utc),
+        )
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Timer already running for this task")
 
     return {"session_id": session.id, "started_at": session.started_at}
 
@@ -89,6 +95,7 @@ async def resume_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: 
         select(TimerSession)
         .where(TimerSession.daily_task_id == task_id, TimerSession.user_id == user.id)
         .where(TimerSession.stopped_at == None)
+        .with_for_update(skip_locked=True)
     )
     existing = result.scalar_one_or_none()
     if existing:
@@ -96,14 +103,18 @@ async def resume_timer(task_id: UUID, db: AsyncSession = Depends(get_db), user: 
 
     task.status = DailyTaskStatus.in_progress
 
-    session = TimerSession(
-        daily_task_id=task_id,
-        user_id=user.id,
-        started_at=datetime.now(timezone.utc),
-    )
-    db.add(session)
-    await db.flush()
-    await db.refresh(session)
+    try:
+        session = TimerSession(
+            daily_task_id=task_id,
+            user_id=user.id,
+            started_at=datetime.now(timezone.utc),
+        )
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Timer already running for this task")
 
     return {"session_id": session.id, "started_at": session.started_at}
 

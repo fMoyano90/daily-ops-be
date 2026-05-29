@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import async_session
 from app.services.jira_sync import sync_all_enabled
 from app.services.day_closer import auto_close_previous_days
+from app.services.task_reminders import process_reminders
 from app.utils.timezone import app_tz
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,15 @@ async def _run_auto_close_day_job() -> None:
         logger.exception("Fallo en job de cierre automático de días")
 
 
+async def _run_task_reminders_job() -> None:
+    try:
+        sent = await process_reminders()
+        if sent:
+            logger.info("Task reminders sent: %d", sent)
+    except Exception:
+        logger.exception("Fallo en job de recordatorios de tareas")
+
+
 def start_scheduler() -> Optional[AsyncIOScheduler]:
     global _scheduler
     if _scheduler is not None:
@@ -96,6 +106,17 @@ def start_scheduler() -> Optional[AsyncIOScheduler]:
         )
     else:
         logger.info("Cierre automático deshabilitado (AUTO_CLOSE_ENABLED=false)")
+    
+    scheduler.add_job(
+        _run_task_reminders_job,
+        trigger="interval",
+        minutes=1,
+        id="task_reminders",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+    logger.info("Job de recordatorios de tareas arrancado (cada 1 min)")
     
     scheduler.start()
     _scheduler = scheduler

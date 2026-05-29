@@ -21,6 +21,7 @@ class RecurringTaskCreate(BaseModel):
     tag: Optional[str] = None
     recurrence_type: RecurringTaskType
     recurrence_days: Optional[List[int]] = None
+    reminder_minutes_before: Optional[int] = Field(default=None, ge=0)
 
     @field_validator("external_url")
     @classmethod
@@ -41,6 +42,7 @@ class RecurringTaskUpdate(BaseModel):
     recurrence_type: Optional[RecurringTaskType] = None
     recurrence_days: Optional[List[int]] = None
     is_active: Optional[bool] = None
+    reminder_minutes_before: Optional[int] = Field(default=None, ge=0)
 
     @field_validator("external_url")
     @classmethod
@@ -74,6 +76,7 @@ class RecurringTaskResponse(BaseModel):
     recurrence_type: RecurringTaskType
     recurrence_days: Optional[List[int]]
     is_active: bool
+    reminder_minutes_before: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     project: Optional[ProjectResponse] = None

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, String, Text, DateTime, Time, Enum as SAEnum, ForeignKey, Boolean, JSON, Integer
 from sqlalchemy.dialects.postgresql import UUID
@@ -38,9 +38,10 @@ class RecurringTask(Base):
     tag = Column(String(100), nullable=True)
     recurrence_type = Column(SAEnum(RecurringTaskType), nullable=False)
     recurrence_days = Column(JSON, nullable=True)
+    reminder_minutes_before = Column(Integer, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     user = relationship("User", back_populates="recurring_tasks")
     project = relationship("Project", back_populates="recurring_tasks")
@@ -50,6 +51,11 @@ class RecurringTask(Base):
         back_populates="recurring_task",
         cascade="all, delete-orphan",
         order_by="TaskComment.created_at.desc()",
+    )
+    reminder_deliveries = relationship(
+        "TaskReminderDelivery",
+        back_populates="recurring_task",
+        cascade="all, delete-orphan",
     )
 
 
@@ -63,7 +69,7 @@ class RecurringTaskInstance(Base):
     daily_task_id = Column(UUID(as_uuid=True), ForeignKey("daily_tasks.id", ondelete="SET NULL"), nullable=True)
     status = Column(SAEnum(RecurringInstanceStatus), nullable=False, default=RecurringInstanceStatus.pending)
     completed_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     user = relationship("User")
     recurring_task = relationship("RecurringTask", back_populates="instances")

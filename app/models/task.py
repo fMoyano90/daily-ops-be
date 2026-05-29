@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from sqlalchemy import Column, String, Text, DateTime, Date, Time, Integer, Enum as SAEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -45,8 +45,9 @@ class Task(Base):
     estimated_seconds = Column(Integer, nullable=True)
     category = Column(String(100), nullable=True)
     meeting_time = Column(Time, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    reminder_minutes_before = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     user = relationship("User", back_populates="tasks")
     project = relationship("Project", back_populates="tasks")
@@ -56,4 +57,9 @@ class Task(Base):
         back_populates="task",
         cascade="all, delete-orphan",
         order_by="TaskComment.created_at.desc()",
+    )
+    reminder_deliveries = relationship(
+        "TaskReminderDelivery",
+        back_populates="task",
+        cascade="all, delete-orphan",
     )

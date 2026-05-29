@@ -37,6 +37,7 @@ class DailyTaskResponse(BaseModel):
     category: Optional[str] = None
     due_date: Optional[date] = None
     meeting_time: Optional[time] = None
+    reminder_minutes_before: Optional[int] = None
     priority: Priority
     status: DailyTaskStatus
     estimated_seconds: Optional[int] = None
@@ -126,6 +127,16 @@ class DailyTaskResponse(BaseModel):
                 if task and getattr(task, "due_date", None):
                     data = dict(data)
                     data["due_date"] = task.due_date
+            if data.get("reminder_minutes_before") is None:
+                task = data.get("task")
+                if task and getattr(task, "reminder_minutes_before", None) is not None:
+                    data = dict(data)
+                    data["reminder_minutes_before"] = task.reminder_minutes_before
+                else:
+                    rt = data.get("recurring_task")
+                    if rt and getattr(rt, "reminder_minutes_before", None) is not None:
+                        data = dict(data)
+                        data["reminder_minutes_before"] = rt.reminder_minutes_before
         elif hasattr(data, "__dict__"):
             if getattr(data, "project", None) is None:
                 task = getattr(data, "task", None)
@@ -172,4 +183,12 @@ class DailyTaskResponse(BaseModel):
                 rt = getattr(data, "recurring_task", None)
                 if rt and getattr(rt, "category", None):
                     data.__dict__["category"] = rt.category
+            if getattr(data, "reminder_minutes_before", None) is None:
+                task = getattr(data, "task", None)
+                if task and getattr(task, "reminder_minutes_before", None) is not None:
+                    data.__dict__["reminder_minutes_before"] = task.reminder_minutes_before
+                else:
+                    rt = getattr(data, "recurring_task", None)
+                    if rt and getattr(rt, "reminder_minutes_before", None) is not None:
+                        data.__dict__["reminder_minutes_before"] = rt.reminder_minutes_before
         return data

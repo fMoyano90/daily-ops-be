@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.jira_connection import DEFAULT_JIRA_JQL, JiraConnection
@@ -20,7 +19,7 @@ from app.schemas.jira_connection import (
 )
 from app.services.crypto import encrypt_token, decrypt_token
 from app.services.jira_client import JiraApiError, JiraAuthError, JiraClient
-from app.services.jira_sync import sync_all_enabled, sync_connection
+from app.services.jira_sync import sync_connection
 
 router = APIRouter(prefix="/api/v1/jira-connections", tags=["jira"])
 
@@ -151,14 +150,3 @@ async def sync_one(connection_id: UUID, db: AsyncSession = Depends(get_db), user
         raise HTTPException(status_code=404, detail="Conexión no encontrada")
     result = await sync_connection(db, conn)
     return SyncResultResponse(**result.__dict__)
-
-
-@router.post("/sync-all", response_model=list[SyncResultResponse])
-async def sync_all(
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    if user.email != settings.FOUNDER_EMAIL:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    results = await sync_all_enabled(db)
-    return [SyncResultResponse(**r.__dict__) for r in results]

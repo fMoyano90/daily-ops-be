@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from sqlalchemy import Column, String, Text, DateTime, Date, Enum as SAEnum, UniqueConstraint, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -23,7 +23,7 @@ class DailyPlan(Base):
     date = Column(Date, nullable=False)
     status = Column(SAEnum(DailyPlanStatus), nullable=False, default=DailyPlanStatus.open)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     user = relationship("User", back_populates="daily_plans")
     tasks = relationship("DailyTask", back_populates="daily_plan", cascade="all, delete-orphan", order_by="DailyTask.sort_order")

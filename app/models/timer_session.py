@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Integer, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -10,6 +10,14 @@ from app.models.project import Base
 
 class TimerSession(Base):
     __tablename__ = "timer_sessions"
+    __table_args__ = (
+        Index(
+            "ix_timer_active_unique",
+            "daily_task_id",
+            unique=True,
+            postgresql_where=text("stopped_at IS NULL"),
+        ),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)

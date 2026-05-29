@@ -19,6 +19,7 @@ class TaskCreate(BaseModel):
     estimated_seconds: Optional[int] = Field(default=None, ge=0)
     category: Optional[str] = None
     meeting_time: Optional[time] = None
+    reminder_minutes_before: Optional[int] = Field(default=None, ge=0)
 
     @field_validator("external_url")
     @classmethod
@@ -37,6 +38,7 @@ class TaskUpdate(BaseModel):
     category: Optional[str] = None
     external_url: Optional[str] = None
     meeting_time: Optional[time] = None
+    reminder_minutes_before: Optional[int] = Field(default=None, ge=0)
 
     @field_validator("external_url")
     @classmethod
@@ -58,6 +60,7 @@ class TaskResponse(BaseModel):
     estimated_seconds: Optional[int] = None
     category: Optional[str]
     meeting_time: Optional[time] = None
+    reminder_minutes_before: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
