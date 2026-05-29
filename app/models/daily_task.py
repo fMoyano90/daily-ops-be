@@ -30,6 +30,7 @@ class DailyTask(Base):
     title_snapshot = Column(String(500), nullable=False)
     priority = Column(SAEnum(Priority, name="priority"), nullable=False)
     status = Column(SAEnum(DailyTaskStatus, name="dailytaskstatus"), nullable=False, default=DailyTaskStatus.planned)
+    estimated_seconds = Column(Integer, nullable=True)
     total_seconds = Column(Integer, nullable=False, default=0)
     sort_order = Column(Integer, nullable=False, default=0)
     started_at = Column(DateTime(timezone=True), nullable=True)

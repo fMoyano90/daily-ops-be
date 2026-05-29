@@ -38,6 +38,7 @@ def serialize_task(t):
         "title_snapshot": t.title_snapshot,
         "priority": t.priority.value if hasattr(t.priority, 'value') else t.priority,
         "status": t.status.value if hasattr(t.status, 'value') else t.status,
+        "estimated_seconds": t.estimated_seconds,
         "total_seconds": t.total_seconds,
         "sort_order": t.sort_order,
         "started_at": str(t.started_at) if t.started_at else None,

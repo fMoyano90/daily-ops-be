@@ -21,6 +21,11 @@ class EmotionEnergy(str, enum.Enum):
     high = "high"
 
 
+class TaskEmotionPhase(str, enum.Enum):
+    before = "before"
+    after = "after"
+
+
 class EmotionEntry(Base):
     __tablename__ = "emotion_entries"
 
@@ -29,6 +34,7 @@ class EmotionEntry(Base):
     daily_plan_id = Column(UUID(as_uuid=True), ForeignKey("daily_plans.id", ondelete="SET NULL"), nullable=True)
     daily_task_id = Column(UUID(as_uuid=True), ForeignKey("daily_tasks.id", ondelete="SET NULL"), nullable=True)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    task_phase = Column(SAEnum(TaskEmotionPhase), nullable=True)
     emotion = Column(String(80), nullable=False)
     secondary_emotions = Column(JSON, nullable=False, default=list)
     intensity = Column(Integer, nullable=False)

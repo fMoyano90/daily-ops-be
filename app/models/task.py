@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
 
-from sqlalchemy import Column, String, Text, DateTime, Date, Time, Enum as SAEnum, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Date, Time, Integer, Enum as SAEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import enum
@@ -42,6 +42,7 @@ class Task(Base):
     status = Column(SAEnum(TaskStatus), nullable=False, default=TaskStatus.backlog)
     priority = Column(SAEnum(Priority), nullable=False, default=Priority.medium)
     due_date = Column(Date, nullable=True)
+    estimated_seconds = Column(Integer, nullable=True)
     category = Column(String(100), nullable=True)
     meeting_time = Column(Time, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

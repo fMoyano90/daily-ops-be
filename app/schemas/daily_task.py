@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator, compute
 from app.models.daily_task import DailyTaskStatus
 from app.models.task import Priority
 from app.schemas.daily_subtask import DailySubtaskResponse
+from app.schemas.emotion import EmotionEntryResponse
 from app.schemas.project import ProjectResponse
 from app.schemas.recurring_task import RecurringTaskResponse
 
@@ -19,6 +20,7 @@ class DailyTaskCreate(BaseModel):
 class DailyTaskUpdate(BaseModel):
     status: Optional[DailyTaskStatus] = None
     priority: Optional[Priority] = None
+    estimated_seconds: Optional[int] = Field(default=None, ge=0)
     sort_order: Optional[int] = None
 
 
@@ -37,12 +39,14 @@ class DailyTaskResponse(BaseModel):
     meeting_time: Optional[time] = None
     priority: Priority
     status: DailyTaskStatus
+    estimated_seconds: Optional[int] = None
     total_seconds: int
     live_total_seconds: int = 0
     sort_order: int
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     subtasks: List[DailySubtaskResponse] = []
+    emotion_entries: List[EmotionEntryResponse] = []
     project: Optional[ProjectResponse] = None
     recurring_task: Optional[RecurringTaskResponse] = None
 

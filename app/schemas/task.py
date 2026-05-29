@@ -1,7 +1,7 @@
 from datetime import datetime, date, time
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.task import TaskSource, TaskStatus, Priority
 from app.schemas.url_validation import normalize_external_url
@@ -16,6 +16,7 @@ class TaskCreate(BaseModel):
     external_url: Optional[str] = None
     priority: Priority = Priority.medium
     due_date: Optional[date] = None
+    estimated_seconds: Optional[int] = Field(default=None, ge=0)
     category: Optional[str] = None
     meeting_time: Optional[time] = None
 
@@ -32,6 +33,7 @@ class TaskUpdate(BaseModel):
     status: Optional[TaskStatus] = None
     priority: Optional[Priority] = None
     due_date: Optional[date] = None
+    estimated_seconds: Optional[int] = Field(default=None, ge=0)
     category: Optional[str] = None
     external_url: Optional[str] = None
     meeting_time: Optional[time] = None
@@ -53,6 +55,7 @@ class TaskResponse(BaseModel):
     status: TaskStatus
     priority: Priority
     due_date: Optional[date]
+    estimated_seconds: Optional[int] = None
     category: Optional[str]
     meeting_time: Optional[time] = None
     created_at: datetime

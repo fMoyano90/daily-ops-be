@@ -65,6 +65,8 @@ async def get_today_plan(db: AsyncSession = Depends(get_db), user: User = Depend
             .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
             selectinload(DailyPlan.tasks)
             .selectinload(DailyTask.timer_sessions),
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.emotion_entries),
         )
     )
     plan = result.scalar_one_or_none()
@@ -85,6 +87,8 @@ async def get_today_plan(db: AsyncSession = Depends(get_db), user: User = Depend
                 .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
                 selectinload(DailyPlan.tasks)
                 .selectinload(DailyTask.timer_sessions),
+                selectinload(DailyPlan.tasks)
+                .selectinload(DailyTask.emotion_entries),
             )
         )
         plan = result.scalar_one()
@@ -104,6 +108,8 @@ async def get_today_plan(db: AsyncSession = Depends(get_db), user: User = Depend
             .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
             selectinload(DailyPlan.tasks)
             .selectinload(DailyTask.timer_sessions),
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.emotion_entries),
         )
     )
     return inject_live_seconds(result.scalar_one())
@@ -111,7 +117,17 @@ async def get_today_plan(db: AsyncSession = Depends(get_db), user: User = Depend
 
 @router.get("/{plan_date}", response_model=DailyPlanResponse)
 async def get_plan_by_date(plan_date: date, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
-    result = await db.execute(select(DailyPlan).where(DailyPlan.date == plan_date, DailyPlan.user_id == user.id))
+    result = await db.execute(
+        select(DailyPlan)
+        .where(DailyPlan.date == plan_date, DailyPlan.user_id == user.id)
+        .options(
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.subtasks),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.task).selectinload(Task.project),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.timer_sessions),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.emotion_entries),
+        )
+    )
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found for this date")
@@ -157,6 +173,7 @@ async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depend
             task_id=task.id,
             title_snapshot=task.title,
             priority=task.priority,
+            estimated_seconds=task.estimated_seconds,
             status=DailyTaskStatus.planned,
             sort_order=max_order + i + 1,
         )
@@ -183,6 +200,8 @@ async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depend
             .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
             selectinload(DailyPlan.tasks)
             .selectinload(DailyTask.timer_sessions),
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.emotion_entries),
         )
     )
     return inject_live_seconds(result.scalar_one())
@@ -226,6 +245,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
                     selectinload(DailyTask.task).selectinload(Task.project),
                     selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
                     selectinload(DailyTask.timer_sessions),
+                    selectinload(DailyTask.emotion_entries),
                 )
             )
             return result.scalar_one()
@@ -236,6 +256,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
             recurring_task_id=recurring_task.id,
             title_snapshot=recurring_task.title,
             priority=priority,
+            estimated_seconds=recurring_task.estimated_seconds,
             status=DailyTaskStatus.planned,
             sort_order=max_order + 1,
         )
@@ -280,6 +301,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
                     selectinload(DailyTask.subtasks),
                     selectinload(DailyTask.task).selectinload(Task.project),
                     selectinload(DailyTask.timer_sessions),
+                    selectinload(DailyTask.emotion_entries),
                 )
             )
             return result.scalar_one()
@@ -290,6 +312,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
             task_id=task.id,
             title_snapshot=task.title,
             priority=priority,
+            estimated_seconds=task.estimated_seconds,
             status=DailyTaskStatus.planned,
             sort_order=max_order + 1,
         )
@@ -307,6 +330,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
             selectinload(DailyTask.task).selectinload(Task.project),
             selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
             selectinload(DailyTask.timer_sessions),
+            selectinload(DailyTask.emotion_entries),
         )
         .execution_options(populate_existing=True)
     )
@@ -389,6 +413,7 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
             "status": t.status.value if hasattr(t.status, 'value') else t.status,
             "priority": t.priority.value if hasattr(t.priority, 'value') else t.priority,
             "due_date": str(source_task.due_date) if source_task and getattr(source_task, 'due_date', None) else None,
+            "estimated_seconds": getattr(source_task, 'estimated_seconds', None),
             "category": t.category if hasattr(t, 'category') else getattr(source_task, 'category', None),
             "meeting_time": str(source_task.meeting_time) if source_task and getattr(source_task, 'meeting_time', None) else None,
             "tag": getattr(t, 'tag', None),
@@ -411,6 +436,7 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
             "status": "backlog",
             "priority": rt.priority.value if hasattr(rt.priority, 'value') else rt.priority,
             "due_date": None,
+            "estimated_seconds": rt.estimated_seconds,
             "category": rt.category,
             "meeting_time": str(rt.meeting_time) if rt.meeting_time else None,
             "tag": rt.tag,

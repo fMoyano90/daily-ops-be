@@ -31,6 +31,7 @@ class RecurringTask(Base):
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     priority = Column(SAEnum(Priority, name="priority"), nullable=False, default=Priority.medium)
+    estimated_seconds = Column(Integer, nullable=True)
     category = Column(String(100), nullable=True)
     meeting_time = Column(Time, nullable=True)
     external_url = Column(String(1000), nullable=True)

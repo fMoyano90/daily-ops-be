@@ -31,6 +31,7 @@ async def get_daily_task_with_relations(db: AsyncSession, task_id: UUID, user_id
             selectinload(DailyTask.task).selectinload(Task.project),
             selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
             selectinload(DailyTask.timer_sessions),
+            selectinload(DailyTask.emotion_entries),
         )
     )
     return result.scalar_one_or_none()

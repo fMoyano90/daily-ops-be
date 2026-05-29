@@ -1,7 +1,7 @@
 from datetime import datetime, time
 from typing import Optional, List
 from uuid import UUID
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.recurring_task import RecurringTaskType, RecurringInstanceStatus
 from app.models.task import Priority
@@ -14,6 +14,7 @@ class RecurringTaskCreate(BaseModel):
     title: str
     description: Optional[str] = None
     priority: Priority = Priority.medium
+    estimated_seconds: Optional[int] = Field(default=None, ge=0)
     category: Optional[str] = None
     meeting_time: Optional[time] = None
     external_url: Optional[str] = None
@@ -31,6 +32,7 @@ class RecurringTaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     priority: Optional[Priority] = None
+    estimated_seconds: Optional[int] = Field(default=None, ge=0)
     category: Optional[str] = None
     meeting_time: Optional[time] = None
     external_url: Optional[str] = None
@@ -64,6 +66,7 @@ class RecurringTaskResponse(BaseModel):
     title: str
     description: Optional[str]
     priority: Priority
+    estimated_seconds: Optional[int] = None
     category: Optional[str]
     meeting_time: Optional[time] = None
     external_url: Optional[str] = None

@@ -81,6 +81,7 @@ async def auto_add_for_today(db: AsyncSession, plan: DailyPlan) -> int:
             recurring_task_id=rt.id,
             title_snapshot=rt.title,
             priority=rt.priority,
+            estimated_seconds=rt.estimated_seconds,
             status=DailyTaskStatus.planned,
             sort_order=max_order + 1,
         )
