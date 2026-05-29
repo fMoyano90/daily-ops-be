@@ -6,6 +6,12 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserRegister(BaseModel):
+    email: str
+    password: str
+    display_name: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str

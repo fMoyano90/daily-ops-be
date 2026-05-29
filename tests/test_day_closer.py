@@ -9,6 +9,20 @@ async def test_close_plan_requires_auth(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_close_plan_with_reflection_requires_auth(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/daily-plans/00000000-0000-0000-0000-000000000001/close",
+        json={
+            "reflection": {
+                "went_well": "Buen foco",
+                "mood_rating": 8,
+            }
+        },
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_reopen_plan_requires_auth(client: AsyncClient):
     response = await client.post("/api/v1/daily-plans/00000000-0000-0000-0000-000000000001/reopen")
     assert response.status_code == 403

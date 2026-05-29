@@ -32,3 +32,4 @@ class User(Base):
     goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
     goal_comments = relationship("GoalComment", back_populates="user", cascade="all, delete-orphan")
     emotion_entries = relationship("EmotionEntry", back_populates="user", cascade="all, delete-orphan")
+    daily_reflections = relationship("DailyReflection", back_populates="user", cascade="all, delete-orphan")

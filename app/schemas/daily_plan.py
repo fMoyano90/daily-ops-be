@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from app.models.daily_plan import DailyPlanStatus
+from app.schemas.daily_reflection import DailyReflectionCreate
 from app.schemas.daily_task import DailyTaskResponse
 
 
@@ -26,3 +27,7 @@ class DailyPlanResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class DailyPlanCloseRequest(BaseModel):
+    reflection: Optional[DailyReflectionCreate] = None

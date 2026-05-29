@@ -11,9 +11,10 @@ from app.models.daily_plan import DailyPlan, DailyPlanStatus
 from app.models.daily_task import DailyTask, DailyTaskStatus
 from app.models.task import Task, TaskStatus
 from app.models.project import Project
+from app.models.daily_reflection import DailyReflection
 from app.models.recurring_task import RecurringTask, RecurringTaskInstance, RecurringInstanceStatus
 from app.models.user import User
-from app.schemas.daily_plan import DailyPlanCreate, DailyPlanUpdate, DailyPlanResponse
+from app.schemas.daily_plan import DailyPlanCreate, DailyPlanUpdate, DailyPlanResponse, DailyPlanCloseRequest
 from app.schemas.daily_task import DailyTaskResponse
 from app.schemas.project import ProjectResponse
 from app.schemas.task import TaskResponse
@@ -23,6 +24,32 @@ from app.services.subtask_carryover import carry_over_subtasks
 from app.utils.timezone import local_today
 
 router = APIRouter(prefix="/api/v1/daily-plans", tags=["daily-plans"])
+
+
+def _has_reflection_content(reflection_payload: dict) -> bool:
+    for value in reflection_payload.values():
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        return True
+    return False
+
+
+async def _save_optional_reflection(db: AsyncSession, plan: DailyPlan, reflection_payload: dict):
+    result = await db.execute(
+        select(DailyReflection).where(DailyReflection.user_id == plan.user_id, DailyReflection.daily_plan_id == plan.id)
+    )
+    reflection = result.scalar_one_or_none()
+    if reflection:
+        for key, value in reflection_payload.items():
+            setattr(reflection, key, value)
+        return reflection
+
+    reflection = DailyReflection(user_id=plan.user_id, daily_plan_id=plan.id, **reflection_payload)
+    db.add(reflection)
+    await db.flush()
+    return reflection
 
 
 def compute_live_total_seconds(task: DailyTask) -> int:
@@ -430,12 +457,23 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
 
 
 @router.post("/{plan_id}/close")
-async def close_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+async def close_plan(
+    plan_id: UUID,
+    data: DailyPlanCloseRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     plan = await db.get(DailyPlan, plan_id)
     if not plan or plan.user_id != user.id:
         raise HTTPException(status_code=404, detail="Plan not found")
     if plan.status == DailyPlanStatus.closed:
         raise HTTPException(status_code=400, detail="Plan is already closed")
+
+    reflection = None
+    if data and data.reflection:
+        reflection_payload = data.reflection.model_dump(exclude_unset=True)
+        if _has_reflection_content(reflection_payload):
+            reflection = await _save_optional_reflection(db, plan, reflection_payload)
 
     summary = await close_day_service(db, plan)
     return {
@@ -443,6 +481,10 @@ async def close_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), user: Us
         "date": str(plan.date),
         "status": plan.status.value if hasattr(plan.status, 'value') else plan.status,
         "summary": summary,
+        "reflection": {
+            "id": str(reflection.id),
+            "daily_plan_id": str(reflection.daily_plan_id),
+        } if reflection else None,
     }
 
 

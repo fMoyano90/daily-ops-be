@@ -28,3 +28,4 @@ class DailyPlan(Base):
     user = relationship("User", back_populates="daily_plans")
     tasks = relationship("DailyTask", back_populates="daily_plan", cascade="all, delete-orphan", order_by="DailyTask.sort_order")
     emotion_entries = relationship("EmotionEntry", back_populates="daily_plan")
+    daily_reflection = relationship("DailyReflection", back_populates="daily_plan", uselist=False)

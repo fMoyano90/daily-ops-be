@@ -6,12 +6,13 @@ from app.database import get_db
 from app.dependencies import (
     get_current_user,
     verify_password,
+    get_password_hash,
     create_access_token,
     create_refresh_token,
     decode_token,
 )
 from app.models.user import User
-from app.schemas.auth import UserLogin, TokenResponse, UserResponse
+from app.schemas.auth import UserLogin, UserRegister, TokenResponse, UserResponse
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -24,6 +25,25 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled")
+    token_data = {"sub": str(user.id), "email": user.email}
+    return TokenResponse(
+        access_token=create_access_token(token_data),
+        refresh_token=create_refresh_token(token_data),
+    )
+
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == data.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+    user = User(
+        email=data.email,
+        display_name=data.display_name,
+        hashed_password=get_password_hash(data.password),
+    )
+    db.add(user)
+    await db.flush()
     token_data = {"sub": str(user.id), "email": user.email}
     return TokenResponse(
         access_token=create_access_token(token_data),
