@@ -135,6 +135,23 @@ async def reorder_tasks(plan_id: UUID, data: dict, db: AsyncSession = Depends(ge
     return {"updated_count": updated_count}
 
 
+@router.post("/{task_id}/reopen", response_model=DailyTaskResponse)
+async def reopen_daily_task(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    task = await db.get(DailyTask, task_id)
+    if not task or task.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Daily task not found")
+    if task.status != DailyTaskStatus.completed:
+        raise HTTPException(status_code=400, detail="Only completed tasks can be reopened")
+
+    task.status = DailyTaskStatus.planned
+    task.completed_at = None
+    await db.flush()
+    await db.refresh(task)
+
+    result = await get_daily_task_with_relations(db, task_id, user.id)
+    return inject_live_seconds_for_task(result)
+
+
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_daily_task(task_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     task = await db.get(DailyTask, task_id)
