@@ -5,7 +5,8 @@ from sqlalchemy import select
 from app.models.user import User
 from app.models.daily_plan import DailyPlan, DailyPlanStatus
 from app.models.daily_task import DailyTask, DailyTaskStatus
-from app.models.task import Task, TaskStatus
+from app.models.task import TaskStatus
+from app.services.task_status_sync import move_base_task_to_backlog_if_unused, sync_base_task_status
 from app.utils.timezone import local_today
 
 
@@ -25,25 +26,16 @@ async def close_day_service(db: AsyncSession, plan: DailyPlan) -> dict:
         total_seconds += task.total_seconds
         if task.status == DailyTaskStatus.completed:
             completed += 1
-            if task.task_id:
-                base_task = await db.get(Task, task.task_id)
-                if base_task and base_task.status == TaskStatus.active:
-                    base_task.status = TaskStatus.done
+            await sync_base_task_status(db, task.task_id, TaskStatus.done)
         elif task.status in [DailyTaskStatus.in_progress, DailyTaskStatus.paused, DailyTaskStatus.planned]:
             task.status = DailyTaskStatus.rolled_over
             rolled_over += 1
-            if task.task_id:
-                base_task = await db.get(Task, task.task_id)
-                if base_task and base_task.status == TaskStatus.active:
-                    base_task.status = TaskStatus.backlog
-                    rolled_back_to_backlog += 1
+            if await move_base_task_to_backlog_if_unused(db, task.task_id):
+                rolled_back_to_backlog += 1
         elif task.status == DailyTaskStatus.skipped:
             skipped += 1
-            if task.task_id:
-                base_task = await db.get(Task, task.task_id)
-                if base_task and base_task.status == TaskStatus.active:
-                    base_task.status = TaskStatus.backlog
-                    rolled_back_to_backlog += 1
+            if await move_base_task_to_backlog_if_unused(db, task.task_id):
+                rolled_back_to_backlog += 1
 
     plan.status = DailyPlanStatus.closed
 

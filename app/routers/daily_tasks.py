@@ -10,13 +10,14 @@ from app.dependencies import get_current_user
 from app.models.daily_task import DailyTask, DailyTaskStatus
 from app.models.daily_subtask import DailySubtask
 from app.models.daily_plan import DailyPlan
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
 from app.models.project import Project
 from app.models.recurring_task import RecurringTask
 from app.models.timer_session import TimerSession
 from app.models.user import User
 from app.schemas.daily_task import DailyTaskUpdate, DailyTaskResponse
 from app.services.recurring_engine import mark_instance_completed, mark_instance_skipped
+from app.services.task_status_sync import move_base_task_to_backlog_if_unused, sync_base_task_status
 from app.routers.daily_plans import inject_live_seconds, inject_live_seconds_for_task
 
 router = APIRouter(prefix="/api/v1/daily-tasks", tags=["daily-tasks"])
@@ -66,6 +67,9 @@ async def update_daily_task(task_id: UUID, data: DailyTaskUpdate, db: AsyncSessi
                 active_session.duration_seconds = int(delta.total_seconds())
             await sync_total_seconds(db, task)
             task.completed_at = datetime.now(timezone.utc)
+            await sync_base_task_status(db, task.task_id, TaskStatus.done)
+        elif update_data["status"] in [DailyTaskStatus.planned, DailyTaskStatus.in_progress, DailyTaskStatus.paused]:
+            await sync_base_task_status(db, task.task_id, TaskStatus.active)
         if update_data["status"] == DailyTaskStatus.in_progress and not task.started_at:
             task.started_at = datetime.now(timezone.utc)
 
@@ -100,6 +104,7 @@ async def complete_daily_task(task_id: UUID, db: AsyncSession = Depends(get_db),
 
     task.status = DailyTaskStatus.completed
     task.completed_at = datetime.now(timezone.utc)
+    await sync_base_task_status(db, task.task_id, TaskStatus.done)
     await db.flush()
 
     if task.recurring_task_id:
@@ -145,6 +150,7 @@ async def reopen_daily_task(task_id: UUID, db: AsyncSession = Depends(get_db), u
 
     task.status = DailyTaskStatus.planned
     task.completed_at = None
+    await sync_base_task_status(db, task.task_id, TaskStatus.active)
     await db.flush()
     await db.refresh(task)
 
@@ -162,6 +168,8 @@ async def remove_daily_task(task_id: UUID, db: AsyncSession = Depends(get_db), u
         plan = await db.get(DailyPlan, task.daily_plan_id)
         if plan:
             await mark_instance_skipped(db, str(task.recurring_task_id), plan.date)
+    elif task.task_id:
+        await move_base_task_to_backlog_if_unused(db, task.task_id, excluding_daily_task_id=task.id)
 
     await db.delete(task)
     await db.flush()

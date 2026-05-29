@@ -6,10 +6,10 @@ Runs every minute from the APScheduler.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -37,17 +37,18 @@ WINDOW_MINUTES = 2
 
 def _compute_reminder_datetime(
     *,
-    base_date,
+    base_date: date | datetime,
     meeting_time,
     minutes_before: int,
-) -> datetime:
+) -> datetime | None:
     """Combine date + meeting_time, subtract offset, return aware datetime."""
     if meeting_time is None:
         return None
     hour = meeting_time.hour if hasattr(meeting_time, "hour") else int(str(meeting_time).split(":")[0])
     minute = meeting_time.minute if hasattr(meeting_time, "minute") else int(str(meeting_time).split(":")[1])
     second = getattr(meeting_time, "second", 0)
-    naive = base_date.replace(hour=hour, minute=minute, second=second, microsecond=0)
+    local_date = base_date.date() if isinstance(base_date, datetime) else base_date
+    naive = datetime.combine(local_date, time(hour=hour, minute=minute, second=second))
     local_dt = naive.replace(tzinfo=app_tz())
     return local_dt - timedelta(minutes=minutes_before)
 
@@ -101,7 +102,6 @@ async def _send_manual_task_reminders(
     2. Tasks in today's daily plan with meeting_time + reminder set (today view)
     """
     today = local_today()
-    today_date = datetime(today.year, today.month, today.day)
     sent = 0
 
     # Source 1: Tasks with due_date set
@@ -144,61 +144,54 @@ async def _send_manual_task_reminders(
         ))
         sent += 1
 
-    # Source 2: Tasks in today's plan with meeting_time + reminder (no due_date needed)
-    today_plan_result = await db.execute(
-        select(DailyPlan).where(
+    # Source 2: Tasks in today's plans with meeting_time + reminder (no due_date needed)
+    daily_tasks_result = await db.execute(
+        select(DailyTask)
+        .join(DailyPlan, DailyPlan.id == DailyTask.daily_plan_id)
+        .where(
             DailyPlan.date == today,
+            DailyTask.task_id.isnot(None),
+            DailyTask.status.in_([DailyTaskStatus.planned, DailyTaskStatus.in_progress, DailyTaskStatus.paused]),
         )
+        .options(selectinload(DailyTask.task))
     )
-    today_plan = today_plan_result.scalar_one_or_none()
+    daily_tasks = daily_tasks_result.scalars().all()
 
-    if today_plan:
-        daily_tasks_result = await db.execute(
-            select(DailyTask)
-            .where(
-                DailyTask.daily_plan_id == today_plan.id,
-                DailyTask.task_id.isnot(None),
-                DailyTask.status.in_([DailyTaskStatus.planned, DailyTaskStatus.in_progress, DailyTaskStatus.paused]),
-            )
-            .options(selectinload(DailyTask.task))
+    for dt in daily_tasks:
+        source_task = dt.task
+        if source_task is None:
+            continue
+        if source_task.reminder_minutes_before is None:
+            continue
+        if source_task.meeting_time is None:
+            continue
+
+        minutes = source_task.reminder_minutes_before
+        reminder_dt = _compute_reminder_datetime(
+            base_date=today,
+            meeting_time=source_task.meeting_time,
+            minutes_before=minutes,
         )
-        daily_tasks = daily_tasks_result.scalars().all()
+        if reminder_dt is None:
+            continue
+        if not (window_start <= reminder_dt <= now):
+            continue
+        if await _already_sent(db, task_id=source_task.id, reminder_dt=reminder_dt, minutes=minutes):
+            continue
 
-        for dt in daily_tasks:
-            source_task = dt.task
-            if source_task is None:
-                continue
-            if source_task.reminder_minutes_before is None:
-                continue
-            if source_task.meeting_time is None:
-                continue
-
-            minutes = source_task.reminder_minutes_before
-            reminder_dt = _compute_reminder_datetime(
-                base_date=today_date,
-                meeting_time=source_task.meeting_time,
-                minutes_before=minutes,
-            )
-            if reminder_dt is None:
-                continue
-            if not (window_start <= reminder_dt <= now):
-                continue
-            if await _already_sent(db, task_id=source_task.id, reminder_dt=reminder_dt, minutes=minutes):
-                continue
-
-            await send_to_user(
-                db, source_task.user_id,
-                title=f"⏰ {source_task.title}",
-                body=f"Comienza en {_format_minutes(minutes)}",
-                url="/today",
-            )
-            db.add(TaskReminderDelivery(
-                user_id=source_task.user_id,
-                task_id=source_task.id,
-                reminder_date=reminder_dt,
-                minutes_before=minutes,
-            ))
-            sent += 1
+        await send_to_user(
+            db, source_task.user_id,
+            title=f"⏰ {source_task.title}",
+            body=f"Comienza en {_format_minutes(minutes)}",
+            url="/today",
+        )
+        db.add(TaskReminderDelivery(
+            user_id=source_task.user_id,
+            task_id=source_task.id,
+            reminder_date=reminder_dt,
+            minutes_before=minutes,
+        ))
+        sent += 1
 
     return sent
 
@@ -227,7 +220,6 @@ async def _send_recurring_task_reminders(
 
         minutes = rt.reminder_minutes_before
 
-        today_start = datetime(today.year, today.month, today.day, 0, 0, 0, tzinfo=timezone.utc)
         instance = None
         for inst in rt.instances:
             if inst.date.date() == today and inst.status == RecurringInstanceStatus.pending:
@@ -238,7 +230,7 @@ async def _send_recurring_task_reminders(
             continue
 
         reminder_dt = _compute_reminder_datetime(
-            base_date=today_start.replace(tzinfo=None),
+            base_date=today,
             meeting_time=rt.meeting_time,
             minutes_before=minutes,
         )

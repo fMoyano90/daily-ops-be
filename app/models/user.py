@@ -34,3 +34,7 @@ class User(Base):
     emotion_entries = relationship("EmotionEntry", back_populates="user", cascade="all, delete-orphan")
     daily_reflections = relationship("DailyReflection", back_populates="user", cascade="all, delete-orphan")
     sleep_logs = relationship("SleepLog", back_populates="user", cascade="all, delete-orphan")
+    health_profile = relationship("HealthProfile", back_populates="user", cascade="all, delete-orphan", uselist=False)
+    nutrition_days = relationship("NutritionDay", back_populates="user", cascade="all, delete-orphan")
+    meal_entries = relationship("MealEntry", back_populates="user", cascade="all, delete-orphan")
+    exercise_entries = relationship("ExerciseEntry", back_populates="user", cascade="all, delete-orphan")

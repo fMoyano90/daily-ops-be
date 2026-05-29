@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: str = ""
     VAPID_CONTACT_EMAIL: str = "f.moyano90@gmail.com"
 
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
+    ANTHROPIC_TIMEOUT_SECONDS: float = 30.0
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     @model_validator(mode="after")

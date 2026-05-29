@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date as date_type, datetime, time
 from typing import Optional
 from uuid import UUID
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class SleepLogCreate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[date_type] = None
     hours_slept: Optional[float] = Field(default=None, ge=0, le=24)
     sleep_quality: Optional[int] = Field(default=None, ge=1, le=10)
     bedtime: Optional[time] = None
@@ -32,7 +32,7 @@ class SleepLogResponse(BaseModel):
     id: UUID
     user_id: UUID
     daily_plan_id: Optional[UUID] = None
-    date: date
+    date: date_type
     hours_slept: Optional[float] = None
     sleep_quality: Optional[int] = None
     bedtime: Optional[time] = None
@@ -48,8 +48,8 @@ class SleepLogResponse(BaseModel):
 
 
 class SleepLogSummaryResponse(BaseModel):
-    period_start: date
-    period_end: date
+    period_start: date_type
+    period_end: date_type
     total_logs: int
     days_with_log: int
     days_without_log: int

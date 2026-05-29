@@ -13,3 +13,4 @@ from app.models.goal import Goal, GoalStep, GoalComment
 from app.models.emotion import EmotionEntry
 from app.models.daily_reflection import DailyReflection
 from app.models.sleep_log import SleepLog
+from app.models.nutrition import ActivityLevel, ExerciseEntry, HealthProfile, MealEntry, NutritionDay, NutritionDayStatus, NutritionGoal, Sex

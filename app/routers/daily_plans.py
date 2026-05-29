@@ -21,6 +21,7 @@ from app.schemas.task import TaskResponse
 from app.services.day_closer import close_day_service
 from app.services.recurring_engine import auto_add_for_today
 from app.services.subtask_carryover import carry_over_subtasks
+from app.services.task_status_sync import sync_base_task_status
 from app.utils.timezone import local_today
 
 router = APIRouter(prefix="/api/v1/daily-plans", tags=["daily-plans"])
@@ -168,7 +169,7 @@ async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depend
     added = []
     for i, task_id in enumerate(task_ids):
         task = await db.get(Task, task_id)
-        if not task:
+        if not task or task.user_id != user.id:
             continue
         daily_task = DailyTask(
             user_id=plan.user_id,
@@ -181,6 +182,7 @@ async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depend
             sort_order=max_order + i + 1,
         )
         db.add(daily_task)
+        await sync_base_task_status(db, task.id, TaskStatus.active)
         added.append(daily_task)
 
     await db.flush()
@@ -220,7 +222,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
     recurring_task_id = data.get("recurring_task_id")
     priority = data.get("priority", "medium")
 
-    result = await db.execute(select(DailyTask).where(DailyTask.daily_plan_id == plan_id))
+    result = await db.execute(select(DailyTask).where(DailyTask.daily_plan_id == plan_id, DailyTask.user_id == user.id))
     existing = result.scalars().all()
     max_order = max([t.sort_order for t in existing], default=0)
 
@@ -230,7 +232,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
 
     if recurring_task_id:
         recurring_task = await db.get(RecurringTask, recurring_task_id)
-        if not recurring_task:
+        if not recurring_task or recurring_task.user_id != user.id:
             raise HTTPException(status_code=404, detail="Recurring task not found")
 
         existing_daily = await db.execute(
@@ -287,7 +289,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
             db.add(instance)
     else:
         task = await db.get(Task, task_id)
-        if not task:
+        if not task or task.user_id != user.id:
             raise HTTPException(status_code=404, detail="Task not found")
 
         existing_daily = await db.execute(
@@ -297,6 +299,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
         )
         existing_dt = existing_daily.scalar_one_or_none()
         if existing_dt:
+            await sync_base_task_status(db, task.id, TaskStatus.active)
             result = await db.execute(
                 select(DailyTask)
                 .where(DailyTask.id == existing_dt.id)
@@ -320,6 +323,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
             sort_order=max_order + 1,
         )
         db.add(daily_task)
+        await sync_base_task_status(db, task.id, TaskStatus.active)
         await db.flush()
         await carry_over_subtasks(db, daily_task)
 
@@ -347,29 +351,64 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
     today = local_today()
     yesterday = today - timedelta(days=1)
 
+    today_plan_result = await db.execute(
+        select(DailyPlan).where(DailyPlan.date == today, DailyPlan.user_id == user.id)
+    )
+    today_plan = today_plan_result.scalar_one_or_none()
+
+    existing_task_ids_in_plan = set()
+    existing_recurring_in_plan = set()
+    if today_plan:
+        existing_daily_result = await db.execute(
+            select(DailyTask.task_id, DailyTask.recurring_task_id)
+            .where(DailyTask.daily_plan_id == today_plan.id, DailyTask.user_id == user.id)
+        )
+        for task_id, recurring_task_id in existing_daily_result.all():
+            if task_id:
+                existing_task_ids_in_plan.add(task_id)
+            if recurring_task_id:
+                existing_recurring_in_plan.add(recurring_task_id)
+
     rolled_over_result = await db.execute(
         select(DailyTask)
         .join(DailyPlan)
         .where(DailyPlan.date == yesterday, DailyPlan.user_id == user.id)
         .where(DailyTask.status == DailyTaskStatus.rolled_over)
-        .options(selectinload(DailyTask.task).selectinload(Task.project))
+        .options(
+            selectinload(DailyTask.task).selectinload(Task.project),
+            selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+        )
     )
-    rolled_over_tasks = rolled_over_result.scalars().all()
+    rolled_over_tasks = [
+        daily_task
+        for daily_task in rolled_over_result.scalars().all()
+        if (
+            daily_task.task_id and daily_task.task_id not in existing_task_ids_in_plan
+        ) or (
+            daily_task.recurring_task_id and daily_task.recurring_task_id not in existing_recurring_in_plan
+        )
+    ]
 
-    high_priority_result = await db.execute(
+    high_priority_query = (
         select(Task)
         .where(Task.status == TaskStatus.backlog, Task.user_id == user.id)
         .where(Task.priority.in_(["critical", "high"]))
         .order_by(Task.priority, Task.created_at.desc())
         .limit(10)
     )
+    if existing_task_ids_in_plan:
+        high_priority_query = high_priority_query.where(Task.id.notin_(existing_task_ids_in_plan))
+    high_priority_result = await db.execute(high_priority_query)
     high_priority_tasks = high_priority_result.scalars().all()
 
-    due_today_result = await db.execute(
+    due_today_query = (
         select(Task)
         .where(Task.status == TaskStatus.backlog, Task.user_id == user.id)
         .where(Task.due_date == today)
     )
+    if existing_task_ids_in_plan:
+        due_today_query = due_today_query.where(Task.id.notin_(existing_task_ids_in_plan))
+    due_today_result = await db.execute(due_today_query)
     due_today_tasks = due_today_result.scalars().all()
 
     recurring_result = await db.execute(
@@ -380,33 +419,26 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
     all_recurring = recurring_result.scalars().all()
     matching_recurring = get_tasks_for_date(all_recurring, today)
 
-    today_plan_result = await db.execute(
-        select(DailyPlan).where(DailyPlan.date == today, DailyPlan.user_id == user.id)
-    )
-    today_plan = today_plan_result.scalar_one_or_none()
-    
-    existing_recurring_in_plan = set()
-    if today_plan:
-        existing_daily_result = await db.execute(
-            select(DailyTask.recurring_task_id)
-            .where(DailyTask.daily_plan_id == today_plan.id)
-            .where(DailyTask.recurring_task_id.isnot(None))
-        )
-        existing_recurring_in_plan = {row[0] for row in existing_daily_result.all()}
-
     recurring_suggestions = [rt for rt in matching_recurring if rt.id not in existing_recurring_in_plan]
 
     def task_to_dict(t):
         project_id = None
         source_task = None
+        suggestion_id = str(t.id)
+        is_daily_task = hasattr(t, 'daily_plan_id')
         if hasattr(t, 'task_id') and t.task_id and hasattr(t, 'task') and t.task:
             source_task = t.task
+            suggestion_id = str(t.task_id)
             project_id = str(t.task.project_id)
+        elif is_daily_task and getattr(t, 'recurring_task_id', None):
+            source_task = getattr(t, 'recurring_task', None)
+            suggestion_id = f"recurring_{t.recurring_task_id}"
+            project_id = str(source_task.project_id) if source_task else None
         elif hasattr(t, 'project_id') and t.project_id:
             source_task = t
             project_id = str(t.project_id)
         return {
-            "id": str(t.id),
+            "id": suggestion_id,
             "project_id": project_id,
             "title": t.title_snapshot if hasattr(t, 'title_snapshot') else t.title,
             "description": None,
@@ -506,6 +538,7 @@ async def reopen_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), user: U
     for task in tasks:
         if task.status in [DailyTaskStatus.rolled_over, DailyTaskStatus.skipped]:
             task.status = DailyTaskStatus.planned
+            await sync_base_task_status(db, task.task_id, TaskStatus.active)
             reopened += 1
 
     await db.flush()

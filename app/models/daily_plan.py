@@ -30,3 +30,6 @@ class DailyPlan(Base):
     emotion_entries = relationship("EmotionEntry", back_populates="daily_plan")
     daily_reflection = relationship("DailyReflection", back_populates="daily_plan", uselist=False)
     sleep_log = relationship("SleepLog", back_populates="daily_plan", uselist=False)
+    nutrition_days = relationship("NutritionDay", back_populates="daily_plan")
+    meal_entries = relationship("MealEntry", back_populates="daily_plan")
+    exercise_entries = relationship("ExerciseEntry", back_populates="daily_plan")
