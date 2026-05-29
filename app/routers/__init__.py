@@ -15,3 +15,5 @@ from app.routers.emotions import router as emotions_router
 from app.routers.daily_reflections import router as daily_reflections_router
 from app.routers.sleep_logs import router as sleep_logs_router
 from app.routers.nutrition import router as nutrition_router
+from app.routers.health import router as health_router
+from app.routers.habits import router as habits_router

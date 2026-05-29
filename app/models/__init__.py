@@ -14,3 +14,5 @@ from app.models.emotion import EmotionEntry
 from app.models.daily_reflection import DailyReflection
 from app.models.sleep_log import SleepLog
 from app.models.nutrition import ActivityLevel, ExerciseEntry, HealthProfile, MealEntry, NutritionDay, NutritionDayStatus, NutritionGoal, Sex
+from app.models.health import ConditionCategory, ConditionStatus, EpisodeType, GuidelineKind, HealthCondition, HealthGuideline, HealthReminder, SicknessEpisode
+from app.models.habit import Habit, HabitEvent

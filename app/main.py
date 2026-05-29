@@ -48,6 +48,8 @@ from app.routers import (
     daily_reflections_router,
     sleep_logs_router,
     nutrition_router,
+    health_router,
+    habits_router,
 )
 
 app.include_router(auth_router)
@@ -67,6 +69,8 @@ app.include_router(emotions_router)
 app.include_router(daily_reflections_router)
 app.include_router(sleep_logs_router)
 app.include_router(nutrition_router)
+app.include_router(health_router)
+app.include_router(habits_router)
 
 
 @app.get("/")
