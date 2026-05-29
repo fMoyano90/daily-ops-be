@@ -27,3 +27,18 @@ class PushTestRequest(BaseModel):
     title: str = "DailyOps"
     body: str = "Notificación de prueba"
     url: str = "/today"
+
+
+class PushSubscriptionListItem(BaseModel):
+    id: UUID
+    endpoint: str
+    user_agent: str | None = None
+    created_at: datetime
+    last_seen_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PushSubscriptionList(BaseModel):
+    subscriptions: list[PushSubscriptionListItem]
+    count: int

@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.push_subscription import (
     PushSubscriptionCreate,
     PushSubscriptionResponse,
+    PushSubscriptionList,
     PushTestRequest,
 )
 from app.services.push import send_to_user
@@ -83,3 +84,35 @@ async def send_test(
 ):
     sent = await send_to_user(db, user.id, title=data.title, body=data.body, url=data.url)
     return {"sent": sent}
+
+
+@router.get("/subscriptions", response_model=PushSubscriptionList)
+async def list_subscriptions(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(PushSubscription)
+        .where(PushSubscription.user_id == user.id)
+        .order_by(PushSubscription.created_at.desc())
+    )
+    subs = result.scalars().all()
+    return PushSubscriptionList(
+        subscriptions=[PushSubscriptionListItem.model_validate(s) for s in subs],
+        count=len(subs),
+    )
+
+
+@router.post("/keep-only-current", status_code=status.HTTP_204_NO_CONTENT)
+async def keep_only_current(
+    endpoint: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await db.execute(
+        delete(PushSubscription).where(
+            PushSubscription.user_id == user.id,
+            PushSubscription.endpoint != endpoint,
+        )
+    )
+    await db.commit()
