@@ -1,9 +1,10 @@
 from datetime import datetime, date, time
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models.task import TaskSource, TaskStatus, Priority
+from app.schemas.url_validation import normalize_external_url
 
 
 class TaskCreate(BaseModel):
@@ -18,6 +19,11 @@ class TaskCreate(BaseModel):
     category: Optional[str] = None
     meeting_time: Optional[time] = None
 
+    @field_validator("external_url")
+    @classmethod
+    def validate_external_url(cls, value: Optional[str]) -> Optional[str]:
+        return normalize_external_url(value)
+
 
 class TaskUpdate(BaseModel):
     project_id: Optional[UUID] = None
@@ -29,6 +35,11 @@ class TaskUpdate(BaseModel):
     category: Optional[str] = None
     external_url: Optional[str] = None
     meeting_time: Optional[time] = None
+
+    @field_validator("external_url")
+    @classmethod
+    def validate_external_url(cls, value: Optional[str]) -> Optional[str]:
+        return normalize_external_url(value)
 
 
 class TaskResponse(BaseModel):

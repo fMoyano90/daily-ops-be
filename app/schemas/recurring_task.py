@@ -1,11 +1,12 @@
 from datetime import datetime, time
 from typing import Optional, List
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models.recurring_task import RecurringTaskType, RecurringInstanceStatus
 from app.models.task import Priority
 from app.schemas.project import ProjectResponse
+from app.schemas.url_validation import normalize_external_url
 
 
 class RecurringTaskCreate(BaseModel):
@@ -20,6 +21,11 @@ class RecurringTaskCreate(BaseModel):
     recurrence_type: RecurringTaskType
     recurrence_days: Optional[List[int]] = None
 
+    @field_validator("external_url")
+    @classmethod
+    def validate_external_url(cls, value: Optional[str]) -> Optional[str]:
+        return normalize_external_url(value)
+
 
 class RecurringTaskUpdate(BaseModel):
     title: Optional[str] = None
@@ -33,6 +39,11 @@ class RecurringTaskUpdate(BaseModel):
     recurrence_type: Optional[RecurringTaskType] = None
     recurrence_days: Optional[List[int]] = None
     is_active: Optional[bool] = None
+
+    @field_validator("external_url")
+    @classmethod
+    def validate_external_url(cls, value: Optional[str]) -> Optional[str]:
+        return normalize_external_url(value)
 
 
 class RecurringInstanceResponse(BaseModel):
