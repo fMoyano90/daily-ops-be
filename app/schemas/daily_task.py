@@ -31,6 +31,7 @@ class DailyTaskResponse(BaseModel):
     description: Optional[str] = None
     external_key: Optional[str] = None
     external_url: Optional[str] = None
+    tag: Optional[str] = None
     category: Optional[str] = None
     due_date: Optional[date] = None
     meeting_time: Optional[time] = None
@@ -86,6 +87,16 @@ class DailyTaskResponse(BaseModel):
                         data["external_key"] = task.external_key
                     if data.get("external_url") is None and hasattr(task, "external_url"):
                         data["external_url"] = task.external_url
+                else:
+                    rt = data.get("recurring_task")
+                    if rt and data.get("external_url") is None and hasattr(rt, "external_url"):
+                        data = dict(data)
+                        data["external_url"] = rt.external_url
+            if data.get("tag") is None:
+                rt = data.get("recurring_task")
+                if rt and getattr(rt, "tag", None):
+                    data = dict(data)
+                    data["tag"] = rt.tag
             if data.get("category") is None:
                 task = data.get("task")
                 if task and getattr(task, "category", None):
@@ -101,6 +112,11 @@ class DailyTaskResponse(BaseModel):
                 if task and getattr(task, "meeting_time", None):
                     data = dict(data)
                     data["meeting_time"] = task.meeting_time
+                else:
+                    rt = data.get("recurring_task")
+                    if rt and getattr(rt, "meeting_time", None):
+                        data = dict(data)
+                        data["meeting_time"] = rt.meeting_time
             if data.get("due_date") is None:
                 task = data.get("task")
                 if task and getattr(task, "due_date", None):
@@ -139,6 +155,15 @@ class DailyTaskResponse(BaseModel):
                     data.__dict__["due_date"] = task.due_date
                 if getattr(data, "meeting_time", None) is None and getattr(task, "meeting_time", None):
                     data.__dict__["meeting_time"] = task.meeting_time
+            else:
+                rt = getattr(data, "recurring_task", None)
+                if rt:
+                    if getattr(data, "external_url", None) is None and getattr(rt, "external_url", None):
+                        data.__dict__["external_url"] = rt.external_url
+                    if getattr(data, "meeting_time", None) is None and getattr(rt, "meeting_time", None):
+                        data.__dict__["meeting_time"] = rt.meeting_time
+                    if getattr(data, "tag", None) is None and getattr(rt, "tag", None):
+                        data.__dict__["tag"] = rt.tag
             if getattr(data, "category", None) is None:
                 rt = getattr(data, "recurring_task", None)
                 if rt and getattr(rt, "category", None):

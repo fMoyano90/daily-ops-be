@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, Text, DateTime, Enum as SAEnum, ForeignKey, Boolean, JSON, Integer
+from sqlalchemy import Column, String, Text, DateTime, Time, Enum as SAEnum, ForeignKey, Boolean, JSON, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import enum
@@ -32,6 +32,9 @@ class RecurringTask(Base):
     description = Column(Text, nullable=True)
     priority = Column(SAEnum(Priority, name="priority"), nullable=False, default=Priority.medium)
     category = Column(String(100), nullable=True)
+    meeting_time = Column(Time, nullable=True)
+    external_url = Column(String(1000), nullable=True)
+    tag = Column(String(100), nullable=True)
     recurrence_type = Column(SAEnum(RecurringTaskType), nullable=False)
     recurrence_days = Column(JSON, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)

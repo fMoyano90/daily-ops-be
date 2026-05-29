@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel
@@ -14,6 +14,9 @@ class RecurringTaskCreate(BaseModel):
     description: Optional[str] = None
     priority: Priority = Priority.medium
     category: Optional[str] = None
+    meeting_time: Optional[time] = None
+    external_url: Optional[str] = None
+    tag: Optional[str] = None
     recurrence_type: RecurringTaskType
     recurrence_days: Optional[List[int]] = None
 
@@ -23,6 +26,9 @@ class RecurringTaskUpdate(BaseModel):
     description: Optional[str] = None
     priority: Optional[Priority] = None
     category: Optional[str] = None
+    meeting_time: Optional[time] = None
+    external_url: Optional[str] = None
+    tag: Optional[str] = None
     project_id: Optional[UUID] = None
     recurrence_type: Optional[RecurringTaskType] = None
     recurrence_days: Optional[List[int]] = None
@@ -48,6 +54,9 @@ class RecurringTaskResponse(BaseModel):
     description: Optional[str]
     priority: Priority
     category: Optional[str]
+    meeting_time: Optional[time] = None
+    external_url: Optional[str] = None
+    tag: Optional[str] = None
     recurrence_type: RecurringTaskType
     recurrence_days: Optional[List[int]]
     is_active: bool
