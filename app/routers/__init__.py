@@ -13,3 +13,4 @@ from app.routers.push import router as push_router
 from app.routers.goals import router as goals_router
 from app.routers.emotions import router as emotions_router
 from app.routers.daily_reflections import router as daily_reflections_router
+from app.routers.sleep_logs import router as sleep_logs_router

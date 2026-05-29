@@ -46,6 +46,7 @@ from app.routers import (
     goals_router,
     emotions_router,
     daily_reflections_router,
+    sleep_logs_router,
 )
 
 app.include_router(auth_router)
@@ -63,6 +64,7 @@ app.include_router(push_router)
 app.include_router(goals_router)
 app.include_router(emotions_router)
 app.include_router(daily_reflections_router)
+app.include_router(sleep_logs_router)
 
 
 @app.get("/")
