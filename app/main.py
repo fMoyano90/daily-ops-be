@@ -50,6 +50,7 @@ from app.routers import (
     nutrition_router,
     health_router,
     habits_router,
+    finances_router,
 )
 
 app.include_router(auth_router)
@@ -71,6 +72,7 @@ app.include_router(sleep_logs_router)
 app.include_router(nutrition_router)
 app.include_router(health_router)
 app.include_router(habits_router)
+app.include_router(finances_router)
 
 
 @app.get("/")

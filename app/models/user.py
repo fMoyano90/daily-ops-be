@@ -42,3 +42,4 @@ class User(Base):
     sickness_episodes = relationship("SicknessEpisode", back_populates="user", cascade="all, delete-orphan")
     habits = relationship("Habit", back_populates="user", cascade="all, delete-orphan")
     habit_events = relationship("HabitEvent", back_populates="user", cascade="all, delete-orphan")
+    finance_entries = relationship("FinanceEntry", back_populates="user", cascade="all, delete-orphan")

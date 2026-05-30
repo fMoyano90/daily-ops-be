@@ -17,3 +17,4 @@ from app.routers.sleep_logs import router as sleep_logs_router
 from app.routers.nutrition import router as nutrition_router
 from app.routers.health import router as health_router
 from app.routers.habits import router as habits_router
+from app.routers.finances import router as finances_router
