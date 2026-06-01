@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.daily_plan import DailyPlan
+from app.models.health import ConditionStatus, HealthCondition, HealthGuideline, GuidelineKind
 from app.models.nutrition import (
     ActivityLevel,
     ExerciseEntry,
@@ -16,7 +17,9 @@ from app.models.nutrition import (
     NutritionDay,
     NutritionDayStatus,
     NutritionGoal,
+    PantryItem,
     Sex,
+    WeightEntry,
 )
 from app.models.user import User
 from app.schemas.nutrition import (
@@ -28,9 +31,14 @@ from app.schemas.nutrition import (
     MealEntryCreate,
     MealEntryResponse,
     MealEntryUpdate,
+    MealPlanRequest,
     NutritionDayResponse,
     NutritionDaySummaryResponse,
+    PantryItemCreate,
+    PantryItemResponse,
+    PantryItemUpdate,
     WaterUpdate,
+    WeightEntryResponse,
 )
 from app.services import nutrition_ai
 from app.services.exercise_service import get_daily_calories_burned
@@ -214,7 +222,115 @@ async def upsert_profile(
         db.add(profile)
     await db.flush()
     await db.refresh(profile)
+
+    today = date.today()
+    weight_result = await db.execute(
+        select(WeightEntry).where(WeightEntry.user_id == user.id, WeightEntry.recorded_at == today)
+    )
+    weight_entry = weight_result.scalar_one_or_none()
+    if weight_entry:
+        weight_entry.weight_kg = data.weight_kg
+    else:
+        db.add(WeightEntry(user_id=user.id, weight_kg=data.weight_kg, recorded_at=today))
+    await db.flush()
+
     return _profile_response(profile)
+
+
+@router.get("/pantry", response_model=list[PantryItemResponse])
+async def list_pantry(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    result = await db.execute(
+        select(PantryItem).where(PantryItem.user_id == user.id).order_by(PantryItem.sort_order.asc(), PantryItem.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+@router.post("/pantry", response_model=PantryItemResponse, status_code=status.HTTP_201_CREATED)
+async def create_pantry_item(data: PantryItemCreate, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    count_result = await db.execute(select(func.count(PantryItem.id)).where(PantryItem.user_id == user.id))
+    count = int(count_result.scalar_one() or 0)
+    item = PantryItem(user_id=user.id, name=data.name.strip(), is_available=data.is_available, sort_order=count)
+    db.add(item)
+    await db.flush()
+    await db.refresh(item)
+    return item
+
+
+@router.patch("/pantry/{item_id}", response_model=PantryItemResponse)
+async def update_pantry_item(
+    item_id: UUID,
+    data: PantryItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(PantryItem).where(PantryItem.id == item_id, PantryItem.user_id == user.id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Pantry item not found")
+    payload = data.model_dump(exclude_unset=True)
+    for key, value in payload.items():
+        setattr(item, key, value.strip() if isinstance(value, str) else value)
+    await db.flush()
+    await db.refresh(item)
+    return item
+
+
+@router.delete("/pantry/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pantry_item(item_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    result = await db.execute(select(PantryItem).where(PantryItem.id == item_id, PantryItem.user_id == user.id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Pantry item not found")
+    await db.delete(item)
+    await db.flush()
+
+
+@router.post("/pantry/suggestions", response_model=list[dict])
+async def get_pantry_suggestions(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    profile_result = await db.execute(select(HealthProfile).where(HealthProfile.user_id == user.id))
+    profile = profile_result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=400, detail="Health profile is required for pantry suggestions")
+
+    pantry_result = await db.execute(
+        select(PantryItem).where(PantryItem.user_id == user.id).order_by(PantryItem.sort_order.asc())
+    )
+    current_items = [item.name for item in pantry_result.scalars().all()]
+
+    conditions_result = await db.execute(
+        select(HealthCondition)
+        .where(HealthCondition.user_id == user.id, HealthCondition.status.in_([ConditionStatus.active, ConditionStatus.monitoring]))
+    )
+    conditions = list(conditions_result.scalars().all())
+    health_context: list[dict] = []
+    for condition in conditions:
+        guidelines_result = await db.execute(
+            select(HealthGuideline)
+            .where(HealthGuideline.condition_id == condition.id, HealthGuideline.kind.in_([GuidelineKind.avoid, GuidelineKind.helps]))
+        )
+        guidelines = list(guidelines_result.scalars().all())
+        health_context.append({
+            "condition": condition.name,
+            "avoid": [g.text for g in guidelines if g.kind == GuidelineKind.avoid],
+            "helps": [g.text for g in guidelines if g.kind == GuidelineKind.helps],
+        })
+
+    return await nutrition_ai.suggest_pantry_items(profile, current_items, health_context)
+
+
+@router.get("/weight-history", response_model=list[WeightEntryResponse])
+async def get_weight_history(
+    limit: int = Query(90, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(WeightEntry)
+        .where(WeightEntry.user_id == user.id)
+        .order_by(WeightEntry.recorded_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
 
 
 @router.get("/today", response_model=NutritionDayResponse)
@@ -438,6 +554,68 @@ async def update_water(
         day.water_ml = data.water_ml
     else:
         day.water_ml = max((day.water_ml or 0) + ((data.delta or 0) * glass_ml), 0)
+    await db.flush()
+    await db.refresh(day)
+    return await _day_response(db, user, day)
+
+
+@router.post("/{log_date}/meal-plan", response_model=NutritionDayResponse)
+async def generate_meal_plan(
+    log_date: date,
+    data: MealPlanRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    profile_result = await db.execute(select(HealthProfile).where(HealthProfile.user_id == user.id))
+    profile = profile_result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=400, detail="Health profile is required before generating a meal plan")
+
+    conditions_result = await db.execute(
+        select(HealthCondition)
+        .where(
+            HealthCondition.user_id == user.id,
+            HealthCondition.status.in_([ConditionStatus.active, ConditionStatus.monitoring]),
+        )
+    )
+    conditions = list(conditions_result.scalars().all())
+
+    health_context: list[dict] = []
+    for condition in conditions:
+        guidelines_result = await db.execute(
+            select(HealthGuideline)
+            .where(
+                HealthGuideline.condition_id == condition.id,
+                HealthGuideline.kind.in_([GuidelineKind.avoid, GuidelineKind.helps]),
+            )
+            .order_by(HealthGuideline.kind, HealthGuideline.sort_order)
+        )
+        guidelines = list(guidelines_result.scalars().all())
+        health_context.append({
+            "condition": condition.name,
+            "avoid": [g.text for g in guidelines if g.kind == GuidelineKind.avoid],
+            "helps": [g.text for g in guidelines if g.kind == GuidelineKind.helps],
+        })
+
+    effective_context_text = data.context_text.strip()
+    if data.context_type == "products":
+        pantry_result = await db.execute(
+            select(PantryItem)
+            .where(PantryItem.user_id == user.id, PantryItem.is_available == True)  # noqa: E712
+            .order_by(PantryItem.sort_order.asc())
+        )
+        available_items = [item.name for item in pantry_result.scalars().all()]
+        if available_items:
+            pantry_text = "Ingredientes disponibles en despensa: " + ", ".join(available_items)
+            effective_context_text = f"{pantry_text}. {effective_context_text}".strip(". ") if effective_context_text else pantry_text
+
+    if not effective_context_text:
+        effective_context_text = "Plan equilibrado según mi perfil y objetivos"
+
+    meal_plan = await nutrition_ai.generate_meal_plan(profile, data.context_type, effective_context_text, health_context)
+
+    day = await _get_or_create_day(db, user, log_date)
+    day.ai_meal_plan = meal_plan
     await db.flush()
     await db.refresh(day)
     return await _day_response(db, user, day)

@@ -16,6 +16,7 @@ class HealthProfileUpsert(BaseModel):
     goal: NutritionGoal
     target_calories_override: Optional[int] = Field(default=None, ge=800, le=10000)
     glass_ml: int = Field(default=200, ge=50, le=1000)
+    country: Optional[str] = Field(default=None, max_length=100)
 
 
 class HealthProfileResponse(HealthProfileUpsert):
@@ -125,8 +126,48 @@ class NutritionDayResponse(BaseModel):
     total_sugar_g: Optional[float] = None
     total_fat_g: Optional[float] = None
     total_fiber_g: Optional[float] = None
+    ai_meal_plan: Optional[dict] = None
     meals: list[MealEntryResponse] = Field(default_factory=list)
     exercises: list[ExerciseEntryResponse] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WeightEntryResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    weight_kg: float
+    recorded_at: date_type
+    notes: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MealPlanRequest(BaseModel):
+    context_type: str = Field(pattern="^(budget|products|general)$")
+    context_text: str = Field(min_length=0, max_length=2000, default="")
+
+
+class PantryItemCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    is_available: bool = True
+
+
+class PantryItemUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    is_available: Optional[bool] = None
+    sort_order: Optional[int] = Field(default=None, ge=0)
+
+
+class PantryItemResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    name: str
+    is_available: bool
+    sort_order: int
     created_at: datetime
     updated_at: datetime
 

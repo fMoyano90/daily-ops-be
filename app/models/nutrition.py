@@ -2,8 +2,8 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum as SAEnum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.models.project import Base
@@ -47,6 +47,7 @@ class HealthProfile(Base):
     goal = Column(SAEnum(NutritionGoal), nullable=False)
     target_calories_override = Column(Integer, nullable=True)
     glass_ml = Column(Integer, nullable=False, default=200)
+    country = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),
@@ -81,6 +82,7 @@ class NutritionDay(Base):
     total_sugar_g = Column(Float, nullable=True)
     total_fat_g = Column(Float, nullable=True)
     total_fiber_g = Column(Float, nullable=True)
+    ai_meal_plan = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),
@@ -146,3 +148,36 @@ class ExerciseEntry(Base):
 
     user = relationship("User", back_populates="exercise_entries")
     daily_plan = relationship("DailyPlan", back_populates="exercise_entries")
+
+
+class WeightEntry(Base):
+    __tablename__ = "weight_entries"
+    __table_args__ = (UniqueConstraint("user_id", "recorded_at", name="uq_weight_entries_user_date"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    weight_kg = Column(Float, nullable=False)
+    recorded_at = Column(Date, nullable=False)
+    notes = Column(String(500), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    user = relationship("User")
+
+
+class PantryItem(Base):
+    __tablename__ = "pantry_items"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(200), nullable=False)
+    is_available = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    user = relationship("User")
