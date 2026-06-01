@@ -39,4 +39,6 @@ class FinanceSummaryResponse(BaseModel):
     date: date
     total_income: Decimal
     total_expense: Decimal
+    opening_balance: Decimal
+    daily_balance: Decimal
     balance: Decimal

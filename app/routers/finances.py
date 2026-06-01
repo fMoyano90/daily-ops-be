@@ -1,9 +1,9 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -96,14 +96,22 @@ async def get_daily_summary(
     user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(FinanceEntry).where(FinanceEntry.user_id == user.id, FinanceEntry.date == date)
+        select(FinanceEntry).where(FinanceEntry.user_id == user.id, FinanceEntry.date <= date)
     )
     entries = result.scalars().all()
-    total_income = sum(e.amount for e in entries if e.type == "income") or Decimal("0.00")
-    total_expense = sum(e.amount for e in entries if e.type == "expense") or Decimal("0.00")
+    previous_entries = [entry for entry in entries if entry.date < date]
+    current_entries = [entry for entry in entries if entry.date == date]
+    total_income = sum(e.amount for e in current_entries if e.type == "income") or Decimal("0.00")
+    total_expense = sum(e.amount for e in current_entries if e.type == "expense") or Decimal("0.00")
+    opening_income = sum(e.amount for e in previous_entries if e.type == "income") or Decimal("0.00")
+    opening_expense = sum(e.amount for e in previous_entries if e.type == "expense") or Decimal("0.00")
+    opening_balance = opening_income - opening_expense
+    daily_balance = total_income - total_expense
     return FinanceSummaryResponse(
         date=date,
         total_income=total_income,
         total_expense=total_expense,
-        balance=total_income - total_expense,
+        opening_balance=opening_balance,
+        daily_balance=daily_balance,
+        balance=opening_balance + daily_balance,
     )
