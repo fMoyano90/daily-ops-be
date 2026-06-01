@@ -10,7 +10,7 @@ from app.models.habit import HabitCategory, HabitEventType, HabitStatus, HabitTr
 class HabitCreate(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     category: HabitCategory = HabitCategory.other
-    tracking_mode: HabitTrackingMode = HabitTrackingMode.abstinence
+    tracking_mode: HabitTrackingMode = HabitTrackingMode.positive
     motivation: Optional[str] = None
     triggers: list[str] = Field(default_factory=list)
     coping_strategies: list[str] = Field(default_factory=list)

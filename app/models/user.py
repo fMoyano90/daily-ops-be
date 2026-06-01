@@ -43,3 +43,6 @@ class User(Base):
     habits = relationship("Habit", back_populates="user", cascade="all, delete-orphan")
     habit_events = relationship("HabitEvent", back_populates="user", cascade="all, delete-orphan")
     finance_entries = relationship("FinanceEntry", back_populates="user", cascade="all, delete-orphan")
+    exercise_profile = relationship("ExerciseProfile", back_populates="user", cascade="all, delete-orphan", uselist=False)
+    workout_days = relationship("WorkoutDay", back_populates="user", cascade="all, delete-orphan")
+    workout_exercises = relationship("WorkoutExercise", back_populates="user", cascade="all, delete-orphan")

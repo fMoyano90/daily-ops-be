@@ -17,3 +17,4 @@ from app.models.nutrition import ActivityLevel, ExerciseEntry, HealthProfile, Me
 from app.models.health import ConditionCategory, ConditionStatus, EpisodeType, GuidelineKind, HealthCondition, HealthGuideline, HealthReminder, SicknessEpisode
 from app.models.habit import Habit, HabitEvent
 from app.models.finance import FinanceEntry
+from app.models.exercise import ExerciseDayStatus, ExerciseProfile, ExerciseType, WorkoutDay, WorkoutExercise, WorkoutExerciseStatus

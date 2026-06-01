@@ -33,6 +33,7 @@ from app.schemas.nutrition import (
     WaterUpdate,
 )
 from app.services import nutrition_ai
+from app.services.exercise_service import get_daily_calories_burned
 from app.utils.timezone import local_today
 
 router = APIRouter(prefix="/api/v1/nutrition", tags=["nutrition"])
@@ -449,9 +450,9 @@ async def analyze_day(log_date: date, db: AsyncSession = Depends(get_db), user: 
     if not profile:
         raise HTTPException(status_code=400, detail="Health profile is required before analyzing nutrition")
 
-    meals, exercises = await _entries_for_day(db, user, log_date)
-    analysis = await nutrition_ai.analyze_day(profile, meals, exercises)
-    _validate_analysis_indexes(analysis, len(meals), len(exercises))
+    meals, _ = await _entries_for_day(db, user, log_date)
+    analysis = await nutrition_ai.analyze_day(profile, meals, [])
+    _validate_analysis_indexes(analysis, len(meals), 0)
 
     day = await _get_or_create_day(db, user, log_date)
 
@@ -468,18 +469,8 @@ async def analyze_day(log_date: date, db: AsyncSession = Depends(get_db), user: 
         meal.fiber_g = item.fiber_g
         meal.ai_notes = item.notes
 
-    exercise_by_index = {item.index: item for item in analysis.exercises}
-    for idx, exercise in enumerate(exercises):
-        item = exercise_by_index.get(idx)
-        if not item:
-            continue
-        exercise.calories_burned = item.calories_burned
-        exercise.duration_min = item.duration_min
-        exercise.intensity = item.intensity
-        exercise.ai_notes = item.notes
-
     consumed = sum(meal.calories or 0 for meal in meals)
-    burned = sum(exercise.calories_burned or 0 for exercise in exercises)
+    burned = await get_daily_calories_burned(user.id, log_date, db)
     tdee = _tdee(profile)
     day.recommended_calories = _recommended_calories(profile)
     day.consumed_calories = consumed

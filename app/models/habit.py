@@ -17,6 +17,7 @@ class HabitCategory(str, enum.Enum):
 
 
 class HabitTrackingMode(str, enum.Enum):
+    positive = "positive"
     abstinence = "abstinence"
     control = "control"
 
@@ -41,7 +42,7 @@ class Habit(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(160), nullable=False)
     category = Column(SAEnum(HabitCategory), nullable=False, default=HabitCategory.other)
-    tracking_mode = Column(SAEnum(HabitTrackingMode), nullable=False, default=HabitTrackingMode.abstinence)
+    tracking_mode = Column(SAEnum(HabitTrackingMode), nullable=False, default=HabitTrackingMode.positive)
     status = Column(SAEnum(HabitStatus), nullable=False, default=HabitStatus.active)
     motivation = Column(Text, nullable=True)
     triggers = Column(JSON, nullable=False, default=list)
