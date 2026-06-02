@@ -19,3 +19,4 @@ from app.routers.health import router as health_router
 from app.routers.habits import router as habits_router
 from app.routers.finances import router as finances_router
 from app.routers.exercise import router as exercise_router
+from app.routers.captures import router as captures_router

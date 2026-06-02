@@ -46,3 +46,5 @@ class User(Base):
     exercise_profile = relationship("ExerciseProfile", back_populates="user", cascade="all, delete-orphan", uselist=False)
     workout_days = relationship("WorkoutDay", back_populates="user", cascade="all, delete-orphan")
     workout_exercises = relationship("WorkoutExercise", back_populates="user", cascade="all, delete-orphan")
+    captures = relationship("Capture", back_populates="user", cascade="all, delete-orphan")
+    capture_attachments = relationship("CaptureAttachment", back_populates="user", cascade="all, delete-orphan")

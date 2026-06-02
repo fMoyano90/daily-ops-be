@@ -18,3 +18,4 @@ from app.models.health import ConditionCategory, ConditionStatus, EpisodeType, G
 from app.models.habit import Habit, HabitEvent
 from app.models.finance import FinanceEntry
 from app.models.exercise import ExerciseDayStatus, ExerciseProfile, ExerciseType, WorkoutDay, WorkoutExercise, WorkoutExerciseStatus
+from app.models.capture import Capture, CaptureAttachment
