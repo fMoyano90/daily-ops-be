@@ -30,7 +30,9 @@ async def get_daily_task_with_relations(db: AsyncSession, task_id: UUID, user_id
         .options(
             selectinload(DailyTask.subtasks),
             selectinload(DailyTask.task).selectinload(Task.project),
+            selectinload(DailyTask.task).selectinload(Task.description_attachments),
             selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyTask.recurring_task).selectinload(RecurringTask.description_attachments),
             selectinload(DailyTask.timer_sessions),
             selectinload(DailyTask.emotion_entries),
         )

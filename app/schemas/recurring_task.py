@@ -1,11 +1,12 @@
 from datetime import datetime, time
-from typing import Optional, List
+from typing import Any, Optional, List
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.recurring_task import RecurringTaskType, RecurringInstanceStatus
 from app.models.task import Priority
 from app.schemas.project import ProjectResponse
+from app.schemas.rich_text import RichTextAttachmentResponse, validate_rich_text_doc
 from app.schemas.url_validation import normalize_external_url
 
 
@@ -13,6 +14,7 @@ class RecurringTaskCreate(BaseModel):
     project_id: UUID
     title: str
     description: Optional[str] = None
+    description_doc: Optional[dict[str, Any]] = None
     priority: Priority = Priority.medium
     estimated_seconds: Optional[int] = Field(default=None, ge=0)
     category: Optional[str] = None
@@ -28,10 +30,16 @@ class RecurringTaskCreate(BaseModel):
     def validate_external_url(cls, value: Optional[str]) -> Optional[str]:
         return normalize_external_url(value)
 
+    @field_validator("description_doc")
+    @classmethod
+    def validate_description_doc(cls, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        return validate_rich_text_doc(value)
+
 
 class RecurringTaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
+    description_doc: Optional[dict[str, Any]] = None
     priority: Optional[Priority] = None
     estimated_seconds: Optional[int] = Field(default=None, ge=0)
     category: Optional[str] = None
@@ -48,6 +56,11 @@ class RecurringTaskUpdate(BaseModel):
     @classmethod
     def validate_external_url(cls, value: Optional[str]) -> Optional[str]:
         return normalize_external_url(value)
+
+    @field_validator("description_doc")
+    @classmethod
+    def validate_description_doc(cls, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        return validate_rich_text_doc(value)
 
 
 class RecurringInstanceResponse(BaseModel):
@@ -67,6 +80,7 @@ class RecurringTaskResponse(BaseModel):
     project_id: UUID
     title: str
     description: Optional[str]
+    description_doc: Optional[dict[str, Any]] = None
     priority: Priority
     estimated_seconds: Optional[int] = None
     category: Optional[str]
@@ -80,6 +94,7 @@ class RecurringTaskResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     project: Optional[ProjectResponse] = None
+    description_attachments: list[RichTextAttachmentResponse] = []
     instances_count: int = 0
     completed_count: int = 0
 

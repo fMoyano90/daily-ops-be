@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.jira_connection import JiraConnection
 from app.models.task import Priority, Task, TaskSource, TaskStatus
+from app.schemas.rich_text import plain_text_to_rich_text
 from app.services.crypto import decrypt_token
 from app.services.jira_client import JiraApiError, JiraAuthError, JiraClient, JiraIssue
 
@@ -112,6 +113,7 @@ async def _upsert_issue(
             project_id=conn.project_id,
             title=issue.summary or issue.key,
             description=issue.description_text,
+            description_doc=plain_text_to_rich_text(issue.description_text),
             source=TaskSource.jira,
             external_key=issue.key,
             external_url=issue.url,
@@ -125,7 +127,9 @@ async def _upsert_issue(
         return
 
     existing.title = issue.summary or existing.title
-    existing.description = issue.description_text
+    if existing.description_customized_at is None:
+        existing.description = issue.description_text
+        existing.description_doc = plain_text_to_rich_text(issue.description_text)
     existing.external_url = issue.url
     existing.priority = mapped_priority
     existing.due_date = issue.due_date

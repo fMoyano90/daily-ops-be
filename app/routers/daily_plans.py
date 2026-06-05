@@ -85,7 +85,9 @@ def _today_plan_query(user_id: UUID):
         .options(
             selectinload(DailyPlan.tasks).selectinload(DailyTask.subtasks),
             selectinload(DailyPlan.tasks).selectinload(DailyTask.task).selectinload(Task.project),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.task).selectinload(Task.description_attachments),
             selectinload(DailyPlan.tasks).selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.recurring_task).selectinload(RecurringTask.description_attachments),
             selectinload(DailyPlan.tasks).selectinload(DailyTask.timer_sessions),
             selectinload(DailyPlan.tasks).selectinload(DailyTask.emotion_entries),
         )
@@ -127,7 +129,9 @@ async def get_plan_by_date(plan_date: date, db: AsyncSession = Depends(get_db), 
         .options(
             selectinload(DailyPlan.tasks).selectinload(DailyTask.subtasks),
             selectinload(DailyPlan.tasks).selectinload(DailyTask.task).selectinload(Task.project),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.task).selectinload(Task.description_attachments),
             selectinload(DailyPlan.tasks).selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyPlan.tasks).selectinload(DailyTask.recurring_task).selectinload(RecurringTask.description_attachments),
             selectinload(DailyPlan.tasks).selectinload(DailyTask.timer_sessions),
             selectinload(DailyPlan.tasks).selectinload(DailyTask.emotion_entries),
         )
@@ -202,7 +206,12 @@ async def select_tasks_for_today(task_ids: list[UUID], db: AsyncSession = Depend
             .selectinload(DailyTask.task)
             .selectinload(Task.project),
             selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.task)
+            .selectinload(Task.description_attachments),
+            selectinload(DailyPlan.tasks)
             .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyPlan.tasks)
+            .selectinload(DailyTask.recurring_task).selectinload(RecurringTask.description_attachments),
             selectinload(DailyPlan.tasks)
             .selectinload(DailyTask.timer_sessions),
             selectinload(DailyPlan.tasks)
@@ -248,7 +257,9 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
                 .options(
                     selectinload(DailyTask.subtasks),
                     selectinload(DailyTask.task).selectinload(Task.project),
+                    selectinload(DailyTask.task).selectinload(Task.description_attachments),
                     selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+                    selectinload(DailyTask.recurring_task).selectinload(RecurringTask.description_attachments),
                     selectinload(DailyTask.timer_sessions),
                     selectinload(DailyTask.emotion_entries),
                 )
@@ -306,6 +317,7 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
                 .options(
                     selectinload(DailyTask.subtasks),
                     selectinload(DailyTask.task).selectinload(Task.project),
+                    selectinload(DailyTask.task).selectinload(Task.description_attachments),
                     selectinload(DailyTask.timer_sessions),
                     selectinload(DailyTask.emotion_entries),
                 )
@@ -335,7 +347,9 @@ async def add_task_to_plan(plan_id: UUID, data: dict, db: AsyncSession = Depends
         .options(
             selectinload(DailyTask.subtasks),
             selectinload(DailyTask.task).selectinload(Task.project),
+            selectinload(DailyTask.task).selectinload(Task.description_attachments),
             selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyTask.recurring_task).selectinload(RecurringTask.description_attachments),
             selectinload(DailyTask.timer_sessions),
             selectinload(DailyTask.emotion_entries),
         )
@@ -376,7 +390,9 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
         .where(DailyTask.status == DailyTaskStatus.rolled_over)
         .options(
             selectinload(DailyTask.task).selectinload(Task.project),
+            selectinload(DailyTask.task).selectinload(Task.description_attachments),
             selectinload(DailyTask.recurring_task).selectinload(RecurringTask.project),
+            selectinload(DailyTask.recurring_task).selectinload(RecurringTask.description_attachments),
         )
     )
     rolled_over_tasks = [
@@ -393,6 +409,7 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
         select(Task)
         .where(Task.status == TaskStatus.backlog, Task.user_id == user.id)
         .where(Task.priority.in_(["critical", "high"]))
+        .options(selectinload(Task.description_attachments))
         .order_by(Task.priority, Task.created_at.desc())
         .limit(10)
     )
@@ -405,6 +422,7 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
         select(Task)
         .where(Task.status == TaskStatus.backlog, Task.user_id == user.id)
         .where(Task.due_date == today)
+        .options(selectinload(Task.description_attachments))
     )
     if existing_task_ids_in_plan:
         due_today_query = due_today_query.where(Task.id.notin_(existing_task_ids_in_plan))
@@ -414,7 +432,7 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
     recurring_result = await db.execute(
         select(RecurringTask)
         .where(RecurringTask.is_active == True, RecurringTask.user_id == user.id)
-        .options(selectinload(RecurringTask.project))
+        .options(selectinload(RecurringTask.project), selectinload(RecurringTask.description_attachments))
     )
     all_recurring = recurring_result.scalars().all()
     matching_recurring = get_tasks_for_date(all_recurring, today)
@@ -441,7 +459,18 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
             "id": suggestion_id,
             "project_id": project_id,
             "title": t.title_snapshot if hasattr(t, 'title_snapshot') else t.title,
-            "description": None,
+            "description": getattr(source_task, 'description', None),
+            "description_doc": getattr(source_task, 'description_doc', None),
+            "description_attachments": [
+                {
+                    "id": str(att.id),
+                    "kind": att.kind,
+                    "file_name": att.file_name,
+                    "mime_type": att.mime_type,
+                    "size_bytes": att.size_bytes,
+                }
+                for att in getattr(source_task, 'description_attachments', [])
+            ] if source_task else [],
             "source": "manual",
             "external_key": t.external_key if hasattr(t, 'external_key') else None,
             "external_url": t.external_url if hasattr(t, 'external_url') else None,
@@ -465,6 +494,17 @@ async def get_suggestions(db: AsyncSession = Depends(get_db), user: User = Depen
             "project_id": project_id,
             "title": rt.title,
             "description": rt.description,
+            "description_doc": rt.description_doc,
+            "description_attachments": [
+                {
+                    "id": str(att.id),
+                    "kind": att.kind,
+                    "file_name": att.file_name,
+                    "mime_type": att.mime_type,
+                    "size_bytes": att.size_bytes,
+                }
+                for att in getattr(rt, 'description_attachments', [])
+            ],
             "source": "manual",
             "external_key": None,
             "external_url": rt.external_url,

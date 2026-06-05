@@ -1,9 +1,10 @@
 from datetime import datetime, date, time
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.task import TaskSource, TaskStatus, Priority
+from app.schemas.rich_text import RichTextAttachmentResponse, validate_rich_text_doc
 from app.schemas.url_validation import normalize_external_url
 
 
@@ -11,6 +12,7 @@ class TaskCreate(BaseModel):
     project_id: UUID
     title: str
     description: Optional[str] = None
+    description_doc: Optional[dict[str, Any]] = None
     source: TaskSource = TaskSource.manual
     external_key: Optional[str] = None
     external_url: Optional[str] = None
@@ -26,11 +28,17 @@ class TaskCreate(BaseModel):
     def validate_external_url(cls, value: Optional[str]) -> Optional[str]:
         return normalize_external_url(value)
 
+    @field_validator("description_doc")
+    @classmethod
+    def validate_description_doc(cls, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        return validate_rich_text_doc(value)
+
 
 class TaskUpdate(BaseModel):
     project_id: Optional[UUID] = None
     title: Optional[str] = None
     description: Optional[str] = None
+    description_doc: Optional[dict[str, Any]] = None
     status: Optional[TaskStatus] = None
     priority: Optional[Priority] = None
     due_date: Optional[date] = None
@@ -45,12 +53,18 @@ class TaskUpdate(BaseModel):
     def validate_external_url(cls, value: Optional[str]) -> Optional[str]:
         return normalize_external_url(value)
 
+    @field_validator("description_doc")
+    @classmethod
+    def validate_description_doc(cls, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        return validate_rich_text_doc(value)
+
 
 class TaskResponse(BaseModel):
     id: UUID
     project_id: UUID
     title: str
     description: Optional[str]
+    description_doc: Optional[dict[str, Any]] = None
     source: TaskSource
     external_key: Optional[str]
     external_url: Optional[str]
@@ -63,5 +77,6 @@ class TaskResponse(BaseModel):
     reminder_minutes_before: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+    description_attachments: list[RichTextAttachmentResponse] = []
 
     model_config = {"from_attributes": True}

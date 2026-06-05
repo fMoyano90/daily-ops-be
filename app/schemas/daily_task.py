@@ -9,6 +9,7 @@ from app.schemas.daily_subtask import DailySubtaskResponse
 from app.schemas.emotion import EmotionEntryResponse
 from app.schemas.project import ProjectResponse
 from app.schemas.recurring_task import RecurringTaskResponse
+from app.schemas.rich_text import RichTextAttachmentResponse
 
 
 class DailyTaskCreate(BaseModel):
@@ -31,6 +32,8 @@ class DailyTaskResponse(BaseModel):
     recurring_task_id: Optional[UUID] = None
     title_snapshot: str
     description: Optional[str] = None
+    description_doc: Optional[dict[str, Any]] = None
+    description_attachments: List[RichTextAttachmentResponse] = []
     external_key: Optional[str] = None
     external_url: Optional[str] = None
     tag: Optional[str] = None
@@ -84,6 +87,18 @@ class DailyTaskResponse(BaseModel):
                     if rt and hasattr(rt, "description"):
                         data = dict(data)
                         data["description"] = rt.description
+            if data.get("description_doc") is None:
+                task = data.get("task")
+                if task and hasattr(task, "description_doc"):
+                    data = dict(data)
+                    data["description_doc"] = task.description_doc
+                    data["description_attachments"] = getattr(task, "description_attachments", [])
+                else:
+                    rt = data.get("recurring_task")
+                    if rt and hasattr(rt, "description_doc"):
+                        data = dict(data)
+                        data["description_doc"] = rt.description_doc
+                        data["description_attachments"] = getattr(rt, "description_attachments", [])
             if data.get("external_key") is None or data.get("external_url") is None:
                 task = data.get("task")
                 if task:
@@ -158,6 +173,16 @@ class DailyTaskResponse(BaseModel):
                     rt = getattr(data, "recurring_task", None)
                     if rt and getattr(rt, "description", None):
                         data.__dict__["description"] = rt.description
+            if getattr(data, "description_doc", None) is None:
+                task = getattr(data, "task", None)
+                if task and getattr(task, "description_doc", None):
+                    data.__dict__["description_doc"] = task.description_doc
+                    data.__dict__["description_attachments"] = getattr(task, "description_attachments", [])
+                else:
+                    rt = getattr(data, "recurring_task", None)
+                    if rt and getattr(rt, "description_doc", None):
+                        data.__dict__["description_doc"] = rt.description_doc
+                        data.__dict__["description_attachments"] = getattr(rt, "description_attachments", [])
             task = getattr(data, "task", None)
             if task:
                 if getattr(data, "external_key", None) is None and getattr(task, "external_key", None):

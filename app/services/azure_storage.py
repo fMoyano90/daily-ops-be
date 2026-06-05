@@ -22,10 +22,10 @@ def _container_client():
     return container
 
 
-def upload_capture_file(user_id: uuid.UUID, file_bytes: bytes, file_name: str, mime_type: str) -> str:
+def upload_blob_file(prefix: str, user_id: uuid.UUID, file_bytes: bytes, file_name: str, mime_type: str) -> str:
     ext = file_name.rsplit(".", 1)[-1] if "." in file_name else "bin"
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-    blob_name = f"captures/{user_id}/{ts}_{uuid.uuid4().hex[:8]}.{ext}"
+    blob_name = f"{prefix}/{user_id}/{ts}_{uuid.uuid4().hex[:8]}.{ext}"
 
     container = _container_client()
     container.upload_blob(
@@ -35,6 +35,14 @@ def upload_capture_file(user_id: uuid.UUID, file_bytes: bytes, file_name: str, m
         content_settings=ContentSettings(content_type=mime_type),
     )
     return blob_name
+
+
+def upload_capture_file(user_id: uuid.UUID, file_bytes: bytes, file_name: str, mime_type: str) -> str:
+    return upload_blob_file("captures", user_id, file_bytes, file_name, mime_type)
+
+
+def upload_task_description_file(user_id: uuid.UUID, file_bytes: bytes, file_name: str, mime_type: str) -> str:
+    return upload_blob_file("task-descriptions", user_id, file_bytes, file_name, mime_type)
 
 
 def delete_capture_file(storage_path: str) -> None:

@@ -19,3 +19,4 @@ from app.models.habit import Habit, HabitEvent
 from app.models.finance import FinanceEntry
 from app.models.exercise import ExerciseDayStatus, ExerciseProfile, ExerciseType, WorkoutDay, WorkoutExercise, WorkoutExerciseStatus
 from app.models.capture import Capture, CaptureAttachment
+from app.models.task_description_attachment import TaskDescriptionAttachment

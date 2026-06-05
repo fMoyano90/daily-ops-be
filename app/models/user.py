@@ -48,3 +48,4 @@ class User(Base):
     workout_exercises = relationship("WorkoutExercise", back_populates="user", cascade="all, delete-orphan")
     captures = relationship("Capture", back_populates="user", cascade="all, delete-orphan")
     capture_attachments = relationship("CaptureAttachment", back_populates="user", cascade="all, delete-orphan")
+    task_description_attachments = relationship("TaskDescriptionAttachment", back_populates="user", cascade="all, delete-orphan")

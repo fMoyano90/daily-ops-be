@@ -30,6 +30,8 @@ class RecurringTask(Base):
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
+    description_doc = Column(JSON, nullable=True)
+    description_customized_at = Column(DateTime(timezone=True), nullable=True)
     priority = Column(SAEnum(Priority, name="priority"), nullable=False, default=Priority.medium)
     estimated_seconds = Column(Integer, nullable=True)
     category = Column(String(100), nullable=True)
@@ -51,6 +53,12 @@ class RecurringTask(Base):
         back_populates="recurring_task",
         cascade="all, delete-orphan",
         order_by="TaskComment.created_at.desc()",
+    )
+    description_attachments = relationship(
+        "TaskDescriptionAttachment",
+        back_populates="recurring_task",
+        cascade="all, delete-orphan",
+        order_by="TaskDescriptionAttachment.created_at.asc()",
     )
     reminder_deliveries = relationship(
         "TaskReminderDelivery",

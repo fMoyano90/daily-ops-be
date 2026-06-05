@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date, timezone
 
-from sqlalchemy import Column, String, Text, DateTime, Date, Time, Integer, Enum as SAEnum, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Date, Time, Integer, Enum as SAEnum, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import enum
@@ -36,6 +36,8 @@ class Task(Base):
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
+    description_doc = Column(JSON, nullable=True)
+    description_customized_at = Column(DateTime(timezone=True), nullable=True)
     source = Column(SAEnum(TaskSource), nullable=False, default=TaskSource.manual)
     external_key = Column(String(100), nullable=True)
     external_url = Column(String(1000), nullable=True)
@@ -57,6 +59,12 @@ class Task(Base):
         back_populates="task",
         cascade="all, delete-orphan",
         order_by="TaskComment.created_at.desc()",
+    )
+    description_attachments = relationship(
+        "TaskDescriptionAttachment",
+        back_populates="task",
+        cascade="all, delete-orphan",
+        order_by="TaskDescriptionAttachment.created_at.asc()",
     )
     reminder_deliveries = relationship(
         "TaskReminderDelivery",
