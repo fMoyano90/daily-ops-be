@@ -19,6 +19,7 @@ ALLOWED_NODE_TYPES = {
 }
 ALLOWED_MARK_TYPES = {"bold", "italic", "code", "link", "strike"}
 ALLOWED_LINK_PREFIXES = ("http://", "https://")
+ALLOWED_URI_SCHEMES = ("mailto:", "tel:", "#")
 
 
 def validate_rich_text_doc(value: Any) -> Any:
@@ -72,8 +73,13 @@ def _validate_node(node: dict[str, Any]) -> None:
             raise ValueError(f"Unsupported rich text mark: {mark_type}")
         if mark_type == "link":
             href = ((mark.get("attrs") or {}).get("href") or "").strip()
-            if not href.startswith(ALLOWED_LINK_PREFIXES):
+            if not href:
+                continue
+            if href.startswith(ALLOWED_LINK_PREFIXES + ALLOWED_URI_SCHEMES):
+                continue
+            if "://" in href:
                 raise ValueError("Links must start with http:// or https://")
+            mark.setdefault("attrs", {})["href"] = "https://" + href
 
     content = node.get("content") or []
     if not isinstance(content, list):
