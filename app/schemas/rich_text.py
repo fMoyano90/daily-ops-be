@@ -17,7 +17,7 @@ ALLOWED_NODE_TYPES = {
     "codeBlock",
     "image",
 }
-ALLOWED_MARK_TYPES = {"bold", "italic", "code", "link", "strike"}
+ALLOWED_MARK_TYPES = {"bold", "italic", "code", "link", "strike", "underline"}
 ALLOWED_LINK_PREFIXES = ("http://", "https://")
 ALLOWED_URI_SCHEMES = ("mailto:", "tel:", "#")
 
